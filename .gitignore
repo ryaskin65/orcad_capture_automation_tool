@@ -205,3 +205,10 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# temporary and backup files
+*.bak
+*.log
+*.out
+*.tmp
+*.csv
