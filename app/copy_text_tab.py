@@ -22,7 +22,7 @@ class CopyTextTab:
         # Buttons
         ttk.Button(self.frame, text="Save to File", command=self.save_file).grid(row=1, column=0, padx=5, pady=5)
         ttk.Button(self.frame, text="Clear", command=self.clear_text).grid(row=1, column=1, padx=5, pady=5)
-        ttk.Button(self.frame, text="Run script", command=self.copy_text).grid(row=1, column=2, padx=5, pady=5)
+        ttk.Button(self.frame, text="Copy text", command=self.copy_text).grid(row=1, column=2, padx=5, pady=5)
         ttk.Button(self.frame, text="Load text", command=self.load_text).grid(row=1, column=3, padx=5, pady=5)
 
         # Bind keyboard shortcuts
@@ -31,6 +31,22 @@ class CopyTextTab:
         self.text_area.bind("<Control-v>", lambda e: self.text_area.event_generate("<<Paste>>"))
         self.text_area.bind("<Control-x>", lambda e: self.text_area.event_generate("<<Cut>>"))
         self.text_area.bind("<Control-s>", self.save_file)
+
+    def get_scripts_dir(self):
+        """Get path to scripts directory"""
+        if getattr(sys, 'frozen', False):
+            app_dir = os.path.dirname(sys.executable)
+        else:
+            app_dir = os.path.dirname(os.path.abspath(__file__))
+
+        if getattr(sys, 'frozen', False):
+            # For executable: scripts folder is at same level as executable
+            scripts_dir = os.path.join(app_dir, "scripts")
+        else:
+            # For development: scripts folder is at same level as app folder
+            scripts_dir = os.path.join(os.path.dirname(app_dir), "scripts")
+
+        return scripts_dir
 
     def save_file(self, event=None):
         """Save text to a file."""
@@ -49,23 +65,16 @@ class CopyTextTab:
 
     def copy_text(self):
         """Copy the text area."""
-        def get_app_dir():
-            if getattr(sys, 'frozen', False):
-                return os.path.dirname(sys.executable)
-            return os.path.dirname(os.path.abspath(__file__))
 
-        app_dir = get_app_dir()
-        script_path = os.path.join(app_dir, script_name)
+        scripts_dir = self.get_scripts_dir()
+        script_path = os.path.join(scripts_dir, script_name)
 
         if not os.path.exists(script_path):
             self.message_logger.log_message('ERROR', f'Script file "{script_path}" not found!')
             return
 
-        csv_path = os.path.join(app_dir, file_csv)
-
-        # if not os.path.exists(csv_path):
-        #     self.message_logger.log_message('ERROR', f'File "{csv_path}" not found!')
-        #     return
+        csv_dir = os.path.join(os.path.dirname(scripts_dir), "data")
+        csv_path = os.path.join(csv_dir, file_csv)
 
         try:
             # Read or create the script file
@@ -89,22 +98,14 @@ class CopyTextTab:
             # Execute the script in OrCAD
             self.screen_handler.execute_in_orcad(script_path, self.message_logger)
 
-            # self.message_logger.log_message('SUCCESS',
-            #                                 f"Updated {script_path} "
-            #                                 f"with '{csv_path}' in {scope_text}")
-
         except Exception as e:
             self.message_logger.log_message('ERROR', f"Error updating script: {str(e)}")
 
     def load_text(self):
         """Clear the text area."""
-        def get_app_dir():
-            if getattr(sys, 'frozen', False):
-                return os.path.dirname(sys.executable)
-            return os.path.dirname(os.path.abspath(__file__))
+        scripts_dir = self.get_scripts_dir()
 
-        app_dir = get_app_dir()
-        csv_path = os.path.join(app_dir, file_csv)
+        csv_path = os.path.join(scripts_dir, file_csv)
         if os.path.exists(csv_path):
             self.text_area.delete("1.0", tk.END)
             with open(csv_path, "r") as f:

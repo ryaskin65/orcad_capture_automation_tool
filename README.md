@@ -5,8 +5,8 @@ Python GUI with TCL scripts to automate routine tasks in OrCAD Capture schematic
 
 ## Features
 - Search and replace text in schematics
-- Change connector directions (input/output)
-- Draw and connect cables automatically
+- Change connector (offPage) directions (input/output)
+- Draw cables automatically according to the Exel table
 - Run TCL scripts via Python GUI
 
 ## Installation

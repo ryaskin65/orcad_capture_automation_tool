@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog
 import os
 import sys
+#import subprocess
 from screen_handler import ScreenHandler
 from excel_utils import ExcelUtils
 
@@ -226,6 +227,22 @@ class CableDraw:
         xlsx_path = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx *.xls")])
         self.load_from_excel()
 
+    def get_scripts_dir(self):
+        """Get path to scripts directory"""
+        if getattr(sys, 'frozen', False):
+            app_dir = os.path.dirname(sys.executable)
+        else:
+            app_dir = os.path.dirname(os.path.abspath(__file__))
+
+        if getattr(sys, 'frozen', False):
+            # For executable: scripts folder is at same level as executable
+            scripts_dir = os.path.join(app_dir, "scripts")
+        else:
+            # For development: scripts folder is at same level as app folder
+            scripts_dir = os.path.join(os.path.dirname(app_dir), "scripts")
+
+        return scripts_dir
+
     def draw(self):
         """Handle draw action with page selection"""
         try:
@@ -235,13 +252,8 @@ class CableDraw:
                     self.message_logger.log_message('ERROR', "No data to draw")
                     return
 
-            def get_app_dir():
-                if getattr(sys, 'frozen', False):
-                    return os.path.dirname(sys.executable)
-                return os.path.dirname(os.path.abspath(__file__))
-
-            app_dir = get_app_dir()
-            script_path = os.path.join(app_dir, script_name)
+            scripts_dir = self.get_scripts_dir()
+            script_path = os.path.join(scripts_dir, script_name)
 
             if not os.path.exists(script_path):
                 self.message_logger.log_message('ERROR', f'Script file "{script_path}" not found!')

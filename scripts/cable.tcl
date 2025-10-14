@@ -1,21 +1,13 @@
-################################################################################
-# 2025.06.19
-# Enertec Systems
-# Igor R.
-#
+# 2025.10.14
 # How to use:
 # 1. Create a CSV file with cable
 # 2. In command window execute:
 # source "path_to_script.tcl"
-# 
-#SetOptionBool Journaling TRUE
-#SetOptionBool DisplayCommands TRUE
-################################################################################
 
 # Global constant
-set VERSION_SCRIPT "19/06/2025"
+set VERSION_SCRIPT "14/10/2025"
 set STEP_XY 2.54
-set A3_WIDTH 410
+set A3_WIDTH 417
 set A3_HEIGHT 350
 
 set StepWireY [expr $STEP_XY * 2]
@@ -38,6 +30,20 @@ set ShieldRightX [expr $EndWireX - $STEP_XY * 17]
 set RightPartX [expr $EndWireX - $STEP_XY * 16]
 set StartRightTextColorX [expr $EndWireX - $STEP_XY * 23]
  
+#set A3_MARGIN 10
+#set MIN_TEXT_AREA 5
+#set COORD_CHECK_ENABLED 0
+#set ERROR_LOG_ENABLED 1
+#set ERROR_LOG_FILE "cable_script_errors.log"
+
+#set tclLibName ""
+#set pathLib ""
+#set ProjectNumber ""
+#set NameRightSide ""
+#set NameLeftSide ""
+#set PageCount 0
+#set PageNumber 0
+
 	################################################################################
 	# DrawText - Places text on the schematic at specified coordinates
 	#  X, Y - Starting coordinates
@@ -46,15 +52,29 @@ set StartRightTextColorX [expr $EndWireX - $STEP_XY * 23]
 	#  S - Font size
 	#  B - Bold flag (TRUE/FALSE)
 	proc DrawText {X Y L W T S B} {
-		#set logfont [DboTclHelper_sMakeLOGFONT "Courier New" 10 0 0 0 400 0 0 0 0 7 0 1 16]
-		#Create display property
-		#set pNewDispProp [$lInst NewDisplayProp $lStatus $lPropNameCStr $displocation $rotation $logfont $color] 
-		#set property as value visible
-		#$pNewDispProp SetDisplayType $::DboValue_VALUE_ONLY  
-		
+		global A3_WIDTH A3_HEIGHT
+		# Check boundaries
+		if {$X < 0 || $X > $A3_WIDTH || $Y < 0 || $Y > $A3_HEIGHT ||
+			[expr $X + $L] > $A3_WIDTH || [expr $Y + $W] > $A3_HEIGHT} {
+			#puts "Text boundary error: X=$X, Y=$Y, L=$L, W=$W"
+			puts "Text boundary error: X=[format "%.2f" $X], Y=[format "%.2f" $Y], L=[format "%.2f" $L], W=[format "%.2f" $W]"
+			return
+		}		
 		PlaceText $X $Y [expr $X + $L] [expr $Y + $W] $T
 		SelectObject $X $Y FALSE
 		SetFont "Courier New" $S $B FALSE
+		# Get the selected text object and update its bounding box
+		set selObj [GetSelectedObjects]
+        set textInst [DboGraphicInstanceToDboGraphicCommentTextInst $selObj]
+        set textDef [$textInst GetDboCommentText]
+        if {$textDef != "NULL"} {
+            if {[catch {$textDef SetRecalBoundingBox} err]} {
+                puts "Warning: SetRecalBoundingBox failed for CommentText: $err"
+                $textInst MarkModified
+            } else {
+                $textInst MarkModified
+            }
+        }
 		UnSelectAll
 		return
 	}
@@ -162,10 +182,17 @@ set StartRightTextColorX [expr $EndWireX - $STEP_XY * 23]
 	################################################################################
 	# Draw left and right Out OffPage
 	proc DrawOutOffPage {SrcCon DstCon Y} {
-		global STEP_XY
+		global STEP_XY A3_WIDTH A3_HEIGHT
 		global offsetNameLeftOffPageX StartTextPinX pathLib
 		global LeftOffPageX RightOffPageX
 		set OffPageY [expr $Y - $STEP_XY]
+		# Check boundaries
+		if {$OffPageY < 0 || $OffPageY > $A3_HEIGHT || 
+			$LeftOffPageX < 0 || $LeftOffPageX > $A3_WIDTH ||
+			$RightOffPageX < 0 || $RightOffPageX > $A3_WIDTH} {
+			puts "OffPage coordinates out of bounds: Y=$Y, LeftX=$LeftOffPageX, RightX=$RightOffPageX"
+			return
+		}
 		if {$DstCon > ""} {
 			PlaceOffPage $LeftOffPageX $OffPageY $pathLib "OFFPAGELEFT-R" "OFFPAGELEFT-R"
 			SetProperty {Name} $DstCon
@@ -181,10 +208,17 @@ set StartRightTextColorX [expr $EndWireX - $STEP_XY * 23]
 	################################################################################
 	# Draw left and right In OffPage
 	proc DrawInOffPage {SrcCon DstCon Y} {
-		global STEP_XY
+		global STEP_XY A3_WIDTH A3_HEIGHT
 		global offsetNameLeftOffPageX StartTextPinX pathLib
 		global LeftOffPageX RightOffPageX
 		set OffPageY [expr $Y - $STEP_XY]
+		# Check boundaries
+		if {$OffPageY < 0 || $OffPageY > $A3_HEIGHT || 
+			$LeftOffPageX < 0 || $LeftOffPageX > $A3_WIDTH ||
+			$RightOffPageX < 0 || $RightOffPageX > $A3_WIDTH} {
+			puts "OffPage coordinates out of bounds: Y=$Y, LeftX=$LeftOffPageX, RightX=$RightOffPageX"
+			return
+		}
 		if {$DstCon > ""} {
 			PlaceOffPage $LeftOffPageX $OffPageY $pathLib "OFFPAGELEFT-L" "OFFPAGELEFT-L"
 			MirrorHorizontal
@@ -209,6 +243,7 @@ set StartRightTextColorX [expr $EndWireX - $STEP_XY * 23]
 			if {($X < 0) || ($X > $A3_WIDTH) || ($Y < 0) || ($Y > $A3_HEIGHT)} {
 				puts [format "Position error in DrawSPLC X:%s Y:%s" $X $Y]
 			} else {
+
 				if {$ver > 16} {
 					PlacePart $X [expr $Y - $STEP_XY] $tclLibName "SPLC" "" FALSE
 				} else {
@@ -221,88 +256,71 @@ set StartRightTextColorX [expr $EndWireX - $STEP_XY * 23]
 	}
 	
 	################################################################################
-	# Get name of groupe from pin name
-	proc GetGroupNameOld {arrPinName idx} {
-		set PinName $arrPinName($idx)
-		
-		if {[string first "/" $pinName] != -1} {
-			set parts [split $pinName "/"]
-			set beforeSlash [lindex $parts 0]
-			set afterSlash [lindex $parts 1]
-			if {[regexp {^[A-D][0-9]+$} $afterSlash]} {
-				return "$beforeSlash[string range $afterSlash 0 0]"
-			} else {
-				return $beforeSlash
-			}
-		}
-		return ""
-	}
-
-	################################################################################
-	# Get name of group from pin name, considering neighboring pins with same letter after slash
+	# Get group identifier from pin name for cable drawing
+	# - If all pins in connector belong to groups A1-A9, B1-B9, C1-C9, D1-D9: returns "CONNECTOR/GROUP"
+	# - Otherwise: returns "CONNECTOR"  
+	# - If no connector name (no slash): returns "GROUP" if pin matches group pattern, else ""
 	proc GetGroupName {arrPinName idx} {
 		set maxIdx [expr {[array size arrPinName] - 1}]
 		upvar 1 $arrPinName arr
-		# Check if index is valid
+		
 		if {![info exists arr($idx)]} {
-			puts "Error: Invalid index $idx"
 			return ""
 		}
 		set PinName $arr($idx)
-		# Check for empty pin name
 		if {$PinName eq ""} {
 			return ""
 		}
+		# Parse connector and pin name
 		if {[string first "/" $PinName] != -1} {
 			set parts [split $PinName "/"]
-			set beforeSlash [lindex $parts 0]
-			set afterSlash [lindex $parts 1]
-			# Check if afterSlash matches pattern ^[A-D][0-9]+$
-			set isValidGroup [regexp {^[A-D][0-9]+$} $afterSlash]
-			if {$isValidGroup} {
-				set currentLetter [string range $afterSlash 0 0]
-				# Check neighboring pins for matching letter after slash
-				set sameGroup 0
-				# Check previous pin (if not first)
-				if {$idx > 0} {
-					set prevIdx [expr {$idx - 1}]
-					if {[info exists arr($prevIdx)]} {
-						set prevPin $arr($prevIdx)
-						if {[string first "/" $prevPin] != -1} {
-							set prevAfterSlash [lindex [split $prevPin "/"] 1]
-							if {[regexp {^[A-D][0-9]+$} $prevAfterSlash]} {
-								set prevLetter [string range $prevAfterSlash 0 0]
-								if {$prevLetter eq $currentLetter} {
-									set sameGroup 1
-								}
-							}
+			set connectorName [lindex $parts 0]
+			set pinName [lindex $parts 1]
+			set hasConnector 1
+		} else {
+			set connectorName ""
+			set pinName $PinName
+			set hasConnector 0
+		}
+		# Check if pin matches group pattern A1-A9, B1-B9, C1-C9, D1-D9
+		if {![regexp {^([A-D])[1-9]$} $pinName match groupLetter]} {
+			# Not a group pin - return connector name only or empty
+			return [expr {$hasConnector ? $connectorName : ""}]
+		}
+		# For pins without connector name - return group letter
+		if {!$hasConnector} {
+			return $groupLetter
+		}
+		# Analyze all pins of this connector to check group distribution
+		set allPinsValidGroups 1
+		set foundGroups [list]
+		for {set i 0} {$i <= $maxIdx} {incr i} {
+			if {[info exists arr($i)] && $arr($i) ne ""} {
+				if {[string first "/" $arr($i)] != -1} {
+					set currentParts [split $arr($i) "/"]
+					set currentConnector [lindex $currentParts 0]
+					set currentPin [lindex $currentParts 1]
+					
+					# Check if this pin belongs to the same connector
+					if {$currentConnector eq $connectorName} {
+						if {[regexp {^([A-D])[1-9]$} $currentPin match currentGroup]} {
+							lappend foundGroups $currentGroup
+						} else {
+							set allPinsValidGroups 0
+							break
 						}
 					}
-				}
-				# Check next pin (if not last)
-				if {$idx < $maxIdx} {
-					set nextIdx [expr {$idx + 1}]
-					if {[info exists arr($nextIdx)]} {
-						set nextPin $arr($nextIdx)
-						if {[string first "/" $nextPin] != -1} {
-							set nextAfterSlash [lindex [split $nextPin "/"] 1]
-							if {[regexp {^[A-D][0-9]+$} $nextAfterSlash]} {
-								set nextLetter [string range $nextAfterSlash 0 0]
-								if {$nextLetter eq $currentLetter} {
-									set sameGroup 1
-								}
-							}
-						}
-					}
-				}
-				# Return group name with letter if same group
-				if {$sameGroup} {
-					return "$beforeSlash$currentLetter"
 				}
 			}
-			return $beforeSlash
 		}
-		return ""
+		# Return appropriate identifier
+		if {$allPinsValidGroups} {
+			# All pins are valid groups - return connector/group
+			return "$connectorName/$groupLetter"
+		} else {
+			# Not all pins are valid groups - return connector only
+			return $connectorName
+		}
 	}
 
 	################################################################################
@@ -359,22 +377,46 @@ set StartRightTextColorX [expr $EndWireX - $STEP_XY * 23]
 
 	################################################################################
 	proc DrawShields {arrayShield X sideLeftRight arrayCon} {
-		global STEP_XY StepWireY StartWireY
+		global STEP_XY StepWireY StartWireY A3_WIDTH A3_HEIGHT
 		upvar $arrayShield arShield
 		upvar $arrayCon arCon
+		
+		# Check if X coordinate is within bounds
+		if {$X < 0 || $X > $A3_WIDTH} {
+			puts "Shield X coordinate out of bounds: $X"
+			return
+		}
+		
 		set arSize [array size arShield]
 		for {set i 0} {$i < $arSize} {incr i} {
 			if {[expr $i & 1] == 0} {
 				set I1 $arShield($i)
 				set Y [expr $StartWireY - 3 * $STEP_XY + $I1 * $StepWireY]
+				
+				# Check Y coordinate
+				if {$Y < 0 || $Y > $A3_HEIGHT} {
+					puts "Shield Y coordinate out of bounds: $Y"
+					continue
+				}
 			} else {
 				set I2 $arShield($i)
 				set L [expr ($I2 - $I1) * $StepWireY]
-				# Place shield
-				if {[findLineInArray arCon $I2]} {
-					DrawShield $X $Y $L $sideLeftRight
-				} else {
-					DrawShield $X $Y $L "DOWN"
+				
+				# Check if shield length is reasonable
+				if {$L < 0 || $L > $A3_HEIGHT} {
+					puts "Shield length out of bounds: $L"
+					continue
+				}
+				
+				# Place shield with error handling
+				if {[catch {
+					if {[findLineInArray arCon $I2]} {
+						DrawShield $X $Y $L $sideLeftRight
+					} else {
+						DrawShield $X $Y $L "DOWN"
+					}
+				} err]} {
+					puts "Error drawing shield at X=$X, Y=$Y: $err"
 				}
 			}
 		}
@@ -432,50 +474,60 @@ set StartRightTextColorX [expr $EndWireX - $STEP_XY * 23]
 
 	################################################################################
 	proc DrawHorizontalWireWithSPLC {WOL WOR WGL WGR XSL XSR XDL XDR Y} {
-		# if {[string is integer -strict $XSL] && [string is integer -strict $XSR] &&
-		# 	[string is integer -strict $XDL] && [string is integer -strict $XDR] &&
-		# 	[string is integer -strict $Y]} {
-			global StartWireX EndWireX STEP_XY
-			# Horizontal wire with SPLC
-			if {($WOL == "") && ($WOR == "")} {
-			# Without SPLC
-				PlaceWire $StartWireX $Y $EndWireX $Y
-			} elseif {($WOR == 0) && ($WOL != 0)} {
-			# Right SPLC
-				DrawSPLC $XSR $Y
-				PlaceWireA3 [expr $XSR + 2 * $STEP_XY] $Y $EndWireX $Y
-				if {$WOL == ""} {
-					PlaceWireA3 $StartWireX $Y $XSR $Y
-				} else {
-					PlaceWireA3 [expr $XDL + $STEP_XY] $Y $XSR $Y
-				}
-			} elseif {($WOR != 0) && ($WOL == 0)} {
-			# Left SPLC
-				DrawSPLC $XSL $Y
-				PlaceWireA3 $StartWireX $Y $XSL $Y
-				if {$WOR == ""} {
-					PlaceWireA3 [expr $XSL + 2 * $STEP_XY] $Y $EndWireX $Y
-				} else {
-					PlaceWireA3 [expr $XSL + 2 * $STEP_XY] $Y [expr $XDR - $STEP_XY] $Y
-				}
-			} elseif {($WOR == 0) && ($WOL == 0)} {
-			# Right and left SPLC
-				DrawSPLC $XSL $Y
-				DrawSPLC $XSR $Y 
-				PlaceWireA3 $StartWireX $Y $XSL $Y
-				PlaceWireA3 [expr $XSL + 2 * $STEP_XY] $Y $XSR $Y
-				PlaceWireA3 [expr $XSR + 2 * $STEP_XY] $Y $EndWireX $Y
-			} elseif {($WOR != "") && ($WOL == "")} {
-			# Right wire up or down: horizontal -> slant -> vertical -> slant
-				PlaceWireA3 $StartWireX $Y [expr $XDR - $STEP_XY] $Y
-			} elseif {($WOR == "") && ($WOL != "")} {
-			# Left wire up or down: horizontal -> slant -> vertical -> slant
-				PlaceWireA3 [expr $XDL + $STEP_XY] $Y $EndWireX $Y
-			} elseif {($WOR != "") && ($WOL != "")} {
-			# Right and left wire up or down: horizontal -> slant -> vertical -> slant
-				PlaceWireA3 [expr $XDL + $STEP_XY] $Y [expr $XDR - $STEP_XY] $Y
+		global StartWireX EndWireX STEP_XY A3_WIDTH A3_HEIGHT
+		# Validate all coordinates
+		foreach coord [list $XSL $XSR $XDL $XDR $Y $StartWireX $EndWireX] {
+			if {![string is double $coord]} {
+				puts "Error: Non-numeric coordinate in DrawHorizontalWireWithSPLC: $coord"
+				return
 			}
-		# }
+		}
+		# Check boundaries
+		if {$Y < 0 || $Y > $A3_HEIGHT || $StartWireX < 0 || $EndWireX > $A3_WIDTH} {
+			puts "Error: Coordinates out of bounds in DrawHorizontalWireWithSPLC: Y=$Y, StartX=$StartWireX, EndX=$EndWireX"
+			return
+		}
+		# Horizontal wire with SPLC
+		if {($WOL == "") && ($WOR == "")} {
+		# Without SPLC
+			if {[catch {PlaceWire $StartWireX $Y $EndWireX $Y} err]} {
+				puts "Error placing wire: $err"
+			}
+		} elseif {($WOR == 0) && ($WOL != 0)} {
+		# Right SPLC
+			DrawSPLC $XSR $Y
+			PlaceWireA3 [expr $XSR + 2 * $STEP_XY] $Y $EndWireX $Y
+			if {$WOL == ""} {
+				PlaceWireA3 $StartWireX $Y $XSR $Y
+			} else {
+				PlaceWireA3 [expr $XDL + $STEP_XY] $Y $XSR $Y
+			}
+		} elseif {($WOR != 0) && ($WOL == 0)} {
+		# Left SPLC
+			DrawSPLC $XSL $Y
+			PlaceWireA3 $StartWireX $Y $XSL $Y
+			if {$WOR == ""} {
+				PlaceWireA3 [expr $XSL + 2 * $STEP_XY] $Y $EndWireX $Y
+			} else {
+				PlaceWireA3 [expr $XSL + 2 * $STEP_XY] $Y [expr $XDR - $STEP_XY] $Y
+			}
+		} elseif {($WOR == 0) && ($WOL == 0)} {
+		# Right and left SPLC
+			DrawSPLC $XSL $Y
+			DrawSPLC $XSR $Y 
+			PlaceWireA3 $StartWireX $Y $XSL $Y
+			PlaceWireA3 [expr $XSL + 2 * $STEP_XY] $Y $XSR $Y
+			PlaceWireA3 [expr $XSR + 2 * $STEP_XY] $Y $EndWireX $Y
+		} elseif {($WOR != "") && ($WOL == "")} {
+		# Right wire up or down: horizontal -> slant -> vertical -> slant
+			PlaceWireA3 $StartWireX $Y [expr $XDR - $STEP_XY] $Y
+		} elseif {($WOR == "") && ($WOL != "")} {
+		# Left wire up or down: horizontal -> slant -> vertical -> slant
+			PlaceWireA3 [expr $XDL + $STEP_XY] $Y $EndWireX $Y
+		} elseif {($WOR != "") && ($WOL != "")} {
+		# Right and left wire up or down: horizontal -> slant -> vertical -> slant
+			PlaceWireA3 [expr $XDL + $STEP_XY] $Y [expr $XDR - $STEP_XY] $Y
+		}
 	}
 
 	################################################################################
@@ -504,8 +556,8 @@ set StartRightTextColorX [expr $EndWireX - $STEP_XY * 23]
 		global offsetNameLeftOffPageX SpliceRightX SpliceLeftX ShieldRightX ShieldLeftX
 		global StepWireY StartWireY StartWireX EndWireX LeftOffPageX RightOffPageX LeftPartX RightPartX
 		global StartTextPinX StartLeftTextColorX StartRightTextColorX StartMiddleTextColorX
-		global pathLib tclLibName NameRightSide NameLeftSide EditTitleBlock
-		global Title DocumentNumber ProjectNumber Revision PageNumber PageCount
+		global pathLib tclLibName NameRightSide NameLeftSide
+		global PageNumber PageCount
 		#Page it is all rows after PAGE to empty row
 		set i 0
 		set maxLenLeftConName 0
@@ -596,6 +648,7 @@ set StartRightTextColorX [expr $EndWireX - $STEP_XY * 23]
 		set iLT 0
 		if {($WireLeftOffset(1) == "") || ($WireLeftOffset(1) == 0)} {
 			set leftConnector [GetConnectorName $LeftConnector(1)]
+			set prevLeftConnector $leftConnector
 		} else {
 			set leftConnector ""
 		}
@@ -603,6 +656,7 @@ set StartRightTextColorX [expr $EndWireX - $STEP_XY * 23]
 		set iRT 0
 		if {($WireRightOffset(1) == "") || ($WireRightOffset(1) == 0)} {
 			set rightConnector [GetConnectorName $RightConnector(1)]
+			set prevRightConnector $rightConnector
 		} else {
 			set rightConnector ""
 		}
@@ -827,61 +881,62 @@ set StartRightTextColorX [expr $EndWireX - $STEP_XY * 23]
 		DrawShields arrayLineLeftShield $ShieldLeftX "LEFT" arrayLineLeftConnector
 		# Draw right shields
 		DrawShields arrayLineRightShield $ShieldRightX "RIGHT" arrayLineRightConnector
-		#NEW ENERTEC TITLE BLOCK
-		if {$EditTitleBlock} {
-			SelectObject 342.14 276.35 FALSE
-			SetProperty {Title} $Title
-			SelectObject 349.76 284.48 FALSE
-			SetProperty {Doc} $DocumentNumber
-			SelectObject 391.41 283.72 FALSE
-			SetProperty {Project Number} $ProjectNumber
-			SelectObject 410.46 283.72 FALSE
-			SetProperty {RevCode} $Revision
-			SelectObject 384.30 288.29 FALSE
-			SetProperty {Page Number} $PageNumber
-			SelectObject 402.34 288.29 FALSE
-			SetProperty {Page Count} $PageCount
-		}
+		#
 		UnSelectAll
 	}
 
 	################################################################################
+	proc SafeLog {message} {
+		set timestamp [clock format [clock seconds] -format "%Y.%m.%d %H:%M:%S"]
+		set logEntry "$timestamp - $message"
+		puts "LOG: $logEntry"
+		catch {
+			set fileId [open "script_safe.log" "a"]
+			puts $fileId $logEntry
+			close $fileId
+		}
+	}
+
+	################################################################################
+	# Main procedure with global error handling
 	proc drawCable {filePath} {
+		SafeLog "Script started"
 		global VERSION_SCRIPT tclLibName pathLib
-		global EditTitleBlock NameLeftSide NameRightSide
-		global Title DocumentNumber ProjectNumber Revision PageNumber PageCount
+		global ProjectNumber NameRightSide NameLeftSide PageCount PageNumber
+		
 		set ProductVersion [GetProductVersion]
 		set dot_pos [string first "." $ProductVersion]
 		if {$dot_pos != -1} {
 			set ver [string range $ProductVersion 0 [expr {$dot_pos - 1}]]
 		} else {
-		    # set ver 17
 			set ver ""
 		}
-		puts "\nStart script Enertec Systems ver. $VERSION_SCRIPT\n"
+		puts "\nStart script cable draw ver. $VERSION_SCRIPT\n"
+		if {$ver == ""} {
+			set ver 24
+		} else {
+			set ver [expr int($ver)]
+		}
+
 		set executableName [info nameofexecutable]
 		if {[regexp -nocase {.*(/spb_[^/]+).*} $executableName match fullMatch]} {
 			set versionInfo [string trimleft $fullMatch "/"]
 			set versionInfo [string toupper $versionInfo]
 			set pathLib "C:/CADENCE/$versionInfo/TOOLS/CAPTURE/LIBRARY/CAPSYM.OLB"
 		} else {
-		    # set pathLib "C:/CADENCE/SPB_17.4/TOOLS/CAPTURE/LIBRARY/CAPSYM.OLB"
 			set pathLib ""
 		}
+		set ProjectNumber ""
 		set NameRightSide ""
 		set NameLeftSide ""
-		set Title ""
-		set DocumentNumber ""
-		set ProjectNumber ""
-		set Revision ""
 		set PageCount 0
 		set PageNumber 0
-		set EditTitleBlock FALSE
 
 		# get from file csv pins of connectors
 		if {[file exists $filePath]} {
 			set fileId [open $filePath "r"]
 			set PageCount [CountPagesInCSV $filePath]
+			close $fileId 
 			if {$PageCount > 0} {
 				puts "Found $PageCount pages in CSV"
 				set PageCount [expr $PageCount + 1]
@@ -895,6 +950,7 @@ set StartRightTextColorX [expr $EndWireX - $STEP_XY * 23]
 			puts "File does not exist: $filePath"
 			return
 		}
+		
 		#SelectPMItem "SCHEMATIC1"
 		while {TRUE} {
 			set PageName ""
@@ -904,15 +960,9 @@ set StartRightTextColorX [expr $EndWireX - $STEP_XY * 23]
 				set parValue [lindex $elements 1]
 				if {$parValue > ""} {
 					switch -exact $parName {
-						"NumberCable"     {set NumberCable $parValue}
+						"ProjectNumber"   {set ProjectNumber $parValue}
 						"NameRightSide"   {set NameRightSide $parValue}
 						"NameLeftSide"    {set NameLeftSide $parValue}
-						"Title"           {set Title $parValue}
-						"PartNumber"      {set PartNumber $parValue}
-						"DocumentNumber"  {set DocumentNumber $parValue}
-						"ProjectNumber"   {set ProjectNumber $parValue}
-						"Revision"        {set Revision $parValue}
-						"EditTitleBlock"  {set EditTitleBlock $parValue}
 						"PAGE"            {set PageName $parValue; break}
 						default {puts "Unknown parameter: $parName"}
 					}
@@ -934,14 +984,25 @@ set StartRightTextColorX [expr $EndWireX - $STEP_XY * 23]
 			}
 		}
 		close $fileId
+		
 		# Delete all vars
-		foreach var [info vars] {
+		set safeVars {VERSION_SCRIPT STEP_XY A3_WIDTH A3_HEIGHT StepWireY 
+					  StartWireY StartWireX EndWireX LeftOffPageX RightOffPageX 
+					  StartTextPinX offsetNameLeftOffPageX StartMiddleTextColorX 
+					  SpliceLeftX ShieldLeftX LeftPartX StartLeftTextColorX 
+					  SpliceRightX ShieldRightX RightPartX StartRightTextColorX 
+					  tclLibName pathLib ProjectNumber NameRightSide NameLeftSide 
+					  PageCount PageNumber}
+
+		foreach var $safeVars {
 			if {[info exists $var]} {
 				unset $var
 			}
 		}
 		UnSelectAll
-		puts "\nScript done!\n"
+		SafeLog "Script done!"
+		set currentDir [pwd]
+		puts "\nLog file location: $currentDir/script_safe.log\n"
 	}
 
 # Path to libraty
@@ -962,16 +1023,12 @@ if {[file exists $tclLibName]} {
 	return
 }
 
+set ProjectNumber ""
 set NameRightSide ""
 set NameLeftSide ""
-set Title ""
-set DocumentNumber ""
-set ProjectNumber ""
-set Revision ""
 set PageCount 0
 set PageNumber 0
-set EditTitleBlock FALSE
 
 # Example execution
 # drawCable "path_to_csv_file"
-drawCable "D:/Cables/W402/W402.csv"
+drawCable "D:/py/Git_OrCAD/data/W203.csv"

@@ -181,4 +181,4 @@ proc exportToCsv {csvFile groups} {
 }
 
 # Example execution
-exportActivePageOffPages D:/py/ORCAD/offpage.csv
+exportActivePageOffPages D:/py/Git_OrCAD/data/offpage.csv

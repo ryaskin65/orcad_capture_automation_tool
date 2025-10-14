@@ -306,4 +306,4 @@ proc saveSelectedText {csvFile} {
 }
 
 # Example: saveSelectedText "d:/tcl/selected_text.csv"
-saveSelectedText "D:/py/ORCAD/selected_text.csv"
+saveSelectedText "D:/py/Git_OrCAD/data/selected_text.csv"

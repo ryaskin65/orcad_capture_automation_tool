@@ -109,12 +109,14 @@ proc updateObjectBoundingBox {obj objType objectTypes activePage} {
                 $textInst MarkModified
             }
         }
-    } elseif {[dict exists $objectTypes PORT] && $objType == [dict get $objectTypes PORT]} {
-        set portInst [DboGraphicInstanceToDboPortInst $obj]
-        if {[catch {$portInst SetRecalBoundingBox} err]} {
-            puts "Warning: SetRecalBoundingBox failed for Port: $err"
-            $portInst MarkModified
-        }
+	} elseif {[dict exists $objectTypes PORT] && $objType == [dict get $objectTypes PORT]} {
+		set portInst $obj
+		if {[catch {$portInst SetBoundingBoxDirty 1} err]} {
+			puts "Warning: SetBoundingBoxDirty failed for Port: $err"
+			$portInst MarkModified
+		} else {
+			$portInst MarkModified
+		}
     } elseif {[dict exists $objectTypes PART] && $objType == [dict get $objectTypes PART]} {
         if {[catch {$obj SetRecalBoundingBox} err]} {
             puts "Warning: SetRecalBoundingBox failed for Part: $err"
@@ -145,6 +147,36 @@ proc updateObjectBoundingBox {obj objType objectTypes activePage} {
     return true
 }
 
+proc adjustPortTextPosition {portInst oldText newText} {
+    set lStatus [DboState]
+    
+    # Get port display properties
+    if {[catch {set propsIter [$portInst NewDisplayPropsIter $lStatus]} err]} {
+        puts "Warning: Cannot get display properties for port: $err"
+        return false
+    }
+    
+    set textAdjusted false
+    set prop [$propsIter NextProp $lStatus]
+    
+    while {$prop != "NULL"} {
+        set propType [$prop GetObjectType]
+        
+        if {$propType == 39} {
+            # Простое перемещение на фиксированное расстояние для теста
+            set newLocation [DboTclHelper_sMakeCPoint 1 1]
+            $prop SetLocation $newLocation
+            set textAdjusted true
+            puts "Port text moved to (1, 1)"
+        }
+        
+        set prop [$propsIter NextProp $lStatus]
+    }
+    
+    delete_DboDisplayPropsIter $propsIter
+    return $textAdjusted
+}
+
 proc replaceTextInObject {obj objectTypes oldText newText activePage} {
     set currentText ""
     set newTextValue ""
@@ -171,7 +203,7 @@ proc replaceTextInObject {obj objectTypes oldText newText activePage} {
             }
         }
     } elseif {[dict exists $objectTypes PORT] && $objType == [dict get $objectTypes PORT]} {
-        set portInst [DboGraphicInstanceToDboPortInst $obj]
+        set portInst $obj
         set nameCStr [DboTclHelper_sMakeCString]
         $portInst GetName $nameCStr
         set currentText [DboTclHelper_sGetConstCharPtr $nameCStr]
@@ -180,6 +212,9 @@ proc replaceTextInObject {obj objectTypes oldText newText activePage} {
             set newTextValue [string map [list $oldText $newText] $currentText]
             set newNameCStr [DboTclHelper_sMakeCString $newTextValue]
             $portInst SetName $newNameCStr
+			# Adjust text position after replacement
+#			adjustPortTextPosition $portInst $currentText $newTextValue			
+			# update Object Bounding Box
             updateObjectBoundingBox $portInst $objType $objectTypes $activePage
             puts "Port name replaced: '$currentText' -> '$newTextValue'"
             return true
@@ -378,4 +413,4 @@ proc replaceSelectedTexts {oldText newText} {
 
 # Example execution
 # replaceSelectedTexts "oldText" "newText"
-replaceSelectedTexts "TEST_NAME" "P1/f" 
+replaceSelectedTexts "PAGE" "PAGEPAGE" 

@@ -5,7 +5,6 @@ import sys
 from screen_handler import ScreenHandler
 
 script_name = 'simple_replace.tcl'
-script_change_direction_offpage_name = 'change_dir_offpage.tcl'
 
 class SimpleReplaceTab:
     def __init__(self, notebook, message_logger):
@@ -30,7 +29,7 @@ class SimpleReplaceTab:
         self.replace_entry.grid(row=1, column=1, padx=5, pady=5, sticky="w")
 
         # Replace button (below fields)
-        self.replace_button = ttk.Button(self.frame, text="Run script", command=self.replace)
+        self.replace_button = ttk.Button(self.frame, text="Find and replace", command=self.replace)
         self.replace_button.grid(row=3, column=2, padx=10, pady=5, sticky="ew")
 
         # Radiobuttons for scope (right side)
@@ -50,30 +49,25 @@ class SimpleReplaceTab:
                         value="all",
                         state="disabled").grid(row=2, column=2, padx=10, pady=5, sticky="w")
 
-        # Change direction Offpage button
-        ttk.Label(self.frame, text="Change direction of Offpages").grid(row=7, column=0, padx=5, pady=5, sticky="w")
-        self.change_dir_offpage_button = ttk.Button(self.frame, text="Run script", command=self.change_dir_offpage)
-        self.change_dir_offpage_button.grid(row=8, column=0, padx=10, pady=5, sticky="ew")
-
         self.frame.grid_rowconfigure(0, weight=0)
         self.frame.grid_rowconfigure(1, weight=0)
         self.frame.grid_rowconfigure(2, weight=0)
 
-    def change_dir_offpage(self):
-        def get_app_dir():
-            if getattr(sys, 'frozen', False):
-                return os.path.dirname(sys.executable)
-            return os.path.dirname(os.path.abspath(__file__))
+    def get_scripts_dir(self):
+        """Get path to scripts directory"""
+        if getattr(sys, 'frozen', False):
+            app_dir = os.path.dirname(sys.executable)
+        else:
+            app_dir = os.path.dirname(os.path.abspath(__file__))
 
-        app_dir = get_app_dir()
-        script_path = os.path.join(app_dir, script_change_direction_offpage_name)
+        if getattr(sys, 'frozen', False):
+            # For executable: scripts folder is at same level as executable
+            scripts_dir = os.path.join(app_dir, "scripts")
+        else:
+            # For development: scripts folder is at same level as app folder
+            scripts_dir = os.path.join(os.path.dirname(app_dir), "scripts")
 
-        if not os.path.exists(script_path):
-            self.message_logger.log_message('ERROR', f'Script file "{script_path}" not found!')
-            return
-
-        # Execute the script in OrCAD
-        self.screen_handler.execute_in_orcad(script_path, self.message_logger)
+        return scripts_dir
 
     def replace(self):
         """Handle replace action."""
@@ -90,13 +84,9 @@ class SimpleReplaceTab:
             self.message_logger.log_message('ERROR', "Error: Find text cannot be empty.")
             return
 
-        def get_app_dir():
-            if getattr(sys, 'frozen', False):
-                return os.path.dirname(sys.executable)
-            return os.path.dirname(os.path.abspath(__file__))
+        scripts_dir = self.get_scripts_dir()
 
-        app_dir = get_app_dir()
-        script_path = os.path.join(app_dir, script_name)
+        script_path = os.path.join(scripts_dir, script_name)
 
         if not os.path.exists(script_path):
             self.message_logger.log_message('ERROR', f'Script file "{script_path}" not found!')

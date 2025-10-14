@@ -164,4 +164,4 @@ proc readStructuredCsvFile {csvFile} {
 }
 
 # Example usage:
-replaceOffPageNamesByCoordinates D:/py/ORCAD/offpage.csv
+replaceOffPageNamesByCoordinates D:/py/Git_OrCAD/data/offpage.csv
