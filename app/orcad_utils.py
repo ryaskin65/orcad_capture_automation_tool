@@ -1,3 +1,4 @@
+# pip install pyautogui pywin32 openpyxl
 import tkinter as tk
 from tkinter import ttk
 from tkinter import scrolledtext
@@ -17,7 +18,7 @@ except ImportError as e:
 class MainApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("OrCAD Capture Automation Tool, 2025.10.02")
+        self.root.title("OrCAD Capture Cable Automation Tool, 2025.10.17")
         self.root.geometry("800x600")
 
         # Create notebook for tabs
@@ -41,11 +42,11 @@ class MainApp:
             raise
 
         # Add tabs to notebook
-        self.notebook.add(self.simple_replace_tab.frame, text="Simple Replace")
-        self.notebook.add(self.table_tab.frame, text="Complex Replace")
-        self.notebook.add(self.offpage_tab.frame, text="OffPage")
+        self.notebook.add(self.cable_draw_tab.frame, text="Cable Automation")
+        self.notebook.add(self.simple_replace_tab.frame, text="Find & replace text")
+        self.notebook.add(self.offpage_tab.frame, text="Connectors")
         self.notebook.add(self.copy_text_tab.frame, text="Copy Text")
-        self.notebook.add(self.cable_draw_tab.frame, text="Cable Draw")
+        self.notebook.add(self.table_tab.frame, text="Complex Replace")
 
         # Bind window close
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)

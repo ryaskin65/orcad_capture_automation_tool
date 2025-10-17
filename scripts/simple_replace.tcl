@@ -1,5 +1,5 @@
-# 01.10.2025
-# Script to replace text for OrCAD Capture
+# 16.10.2025
+# Script to find and replace text for OrCAD Capture
 # Replaces specified text in selected objects
 
 proc initObjectTypes {activePage} {
@@ -14,7 +14,7 @@ proc initObjectTypes {activePage} {
         set offPageInst [$offPageIter NextOffPageConnector $lStatus]
         if {$offPageInst != "NULL"} {
             dict set types OFFPAGE [$offPageInst GetObjectType]
-            puts "OFFPAGE type: [dict get $types OFFPAGE]"
+            #puts "OFFPAGE type: [dict get $types OFFPAGE]"
         }
         catch {delete_DboPageOffPageConnectorsIter $offPageIter}
     }
@@ -26,7 +26,7 @@ proc initObjectTypes {activePage} {
         set portInst [$portIter NextPort $lStatus]
         if {$portInst != "NULL"} {
             dict set types PORT [$portInst GetObjectType]
-            puts "PORT type: [dict get $types PORT]"
+            #puts "PORT type: [dict get $types PORT]"
         }
         catch {delete_DboPagePortsIter $portIter}
     }
@@ -38,7 +38,7 @@ proc initObjectTypes {activePage} {
         set lPlacedInst [DboPartInstToDboPlacedInst $lInst]
         if {$lPlacedInst != $lNullObj} {
             dict set types PART [$lPlacedInst GetObjectType]
-            puts "PART type: [dict get $types PART]"
+            #puts "PART type: [dict get $types PART]"
         }
     }
     delete_DboPagePartInstsIter $lPartInstsIter
@@ -50,7 +50,7 @@ proc initObjectTypes {activePage} {
             set lDProp [$lPropsIter NextProp $lStatus]
             if {$lDProp != $lNullObj} { 
                 dict set types DISPLAY [$lDProp GetObjectType]
-                puts "DISPLAY type: [dict get $types DISPLAY]"
+                #puts "DISPLAY type: [dict get $types DISPLAY]"
             }
             delete_DboDisplayPropsIter $lPropsIter
         }
@@ -67,7 +67,7 @@ proc initObjectTypes {activePage} {
             # Store Wire Scalar type (20) only once
             if {!$wireScalarFound} {
                 dict set types WIRE_SCALAR [$lWire GetObjectType]
-                puts "WIRE_SCALAR type: [dict get $types WIRE_SCALAR]"
+                #puts "WIRE_SCALAR type: [dict get $types WIRE_SCALAR]"
                 set wireScalarFound true
             }
             
@@ -77,7 +77,7 @@ proc initObjectTypes {activePage} {
                 set lAlias [$lAliasIter NextAlias $lStatus]
                 if {$lAlias != $lNullObj} {
                     dict set types WIRE_ALIAS [$lAlias GetObjectType]
-                    puts "WIRE_ALIAS type: [dict get $types WIRE_ALIAS]"
+                    #puts "WIRE_ALIAS type: [dict get $types WIRE_ALIAS]"
                     set wireAliasFound true
                 }
                 delete_DboWireAliasesIter $lAliasIter
@@ -89,7 +89,7 @@ proc initObjectTypes {activePage} {
 
     # Graphic Comment Text type (61) - standard constant
     dict set types COMMENT_TEXT $::DboBaseObject_GRAPHIC_COMMENTTEXT_INST
-    puts "COMMENT_TEXT type: [dict get $types COMMENT_TEXT]"
+    #puts "COMMENT_TEXT type: [dict get $types COMMENT_TEXT]"
 
     return $types
 }
@@ -359,9 +359,26 @@ proc processObject {obj objectTypes oldText newText activePage} {
     return false
 }
 
+################################################################################
+proc SafeLog {message} {
+	global scriptDir
+	set timestamp [clock format [clock seconds] -format "%Y.%m.%d %H:%M:%S"]
+	set logEntry "$timestamp - $message"
+	#puts "LOG: $logEntry"
+	catch {
+		set logPath [file join $scriptDir "script_safe.log"]
+		if {$message == "Script started"} {
+			set fileId [open $logPath "w"]
+		} else {
+			set fileId [open $logPath "a"]
+		}
+		puts $fileId $logEntry
+		close $fileId
+	}
+}
+
 proc replaceSelectedTexts {oldText newText} {
-    puts "Starting improved text replacement script"
-    
+	SafeLog "Script started"
     # Validate input
     if {$oldText eq ""} {
         puts "Error: Text to find cannot be empty."
@@ -408,9 +425,11 @@ proc replaceSelectedTexts {oldText newText} {
     } else {
         puts "Text '$oldText' not found in selected objects."
     }
-    puts "Script done."
+	SafeLog "Script done!"
 }
 
-# Example execution
-# replaceSelectedTexts "oldText" "newText"
-replaceSelectedTexts "PAGE" "PAGEPAGE" 
+if {[info exists ::find_text] && [info exists ::replace_text]} {
+	replaceSelectedTexts $::find_text $::replace_text
+} else {
+	puts "ERROR: Global variables find_text or/and replace_text not set!"
+}

@@ -1,3 +1,9 @@
+# from pywinauto import Application
+# # Подключаемся к уже запущенному OrCAD Capture
+# app = Application(backend="uia").connect(class_name="OrCaptureFrame")
+# # Выводим структуру элементов для анализа
+# app.window(class_name="OrCaptureFrame").print_control_identifiers(depth=3)
+
 import pyautogui
 import time
 import win32api
@@ -103,10 +109,16 @@ class ScreenHandler:
         self.click_window_center(edit_hwnd)
         time.sleep(0.5)
 
-        # Clear and execute command
-        pyautogui.write("cls")
-        pyautogui.press('enter')
+        # Clear command window and execute command
+        pyautogui.write("cls\n")
         time.sleep(0.5)
+        # # pyautogui.write(f'set ::find_text "{find_text}"\n')
+        # pyautogui.write(f'set ::find_text 22\n')
+        # time.sleep(0.5)
+        # # pyautogui.write(f'set ::replace_text "{replace_text}"\n')
+        # pyautogui.write(f'set ::replace_text 20\n')
+        # time.sleep(0.5)
+        # # pyautogui.write(f'set ::scope "{scope}"\n')
 
         # Type the source command and press Enter
         script_path = script_path.replace('\\', '/')

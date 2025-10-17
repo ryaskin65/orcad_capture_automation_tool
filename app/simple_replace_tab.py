@@ -3,6 +3,7 @@ from tkinter import ttk
 import os
 import sys
 from screen_handler import ScreenHandler
+from orcad_script_runner import OrcadScriptRunner
 
 script_name = 'simple_replace.tcl'
 
@@ -11,8 +12,13 @@ class SimpleReplaceTab:
         self.message_logger = message_logger
         self.frame = ttk.Frame(notebook)
 
-        # Initialize ScreenHandler with MessageLogger
+        # Initialize ScreenHandler and ScriptRunner
         self.screen_handler = ScreenHandler(self.message_logger)
+        self.script_runner = OrcadScriptRunner(
+            self.screen_handler,
+            self.message_logger,
+            self.get_scripts_dir()
+        )
 
         # Create a grid layout with 3 columns: left for fields, right for radiobuttons
         self.frame.columnconfigure(0, weight=0)
@@ -74,45 +80,33 @@ class SimpleReplaceTab:
         find_text = self.find_entry.get()
         replace_text = self.replace_entry.get()
         scope = self.scope_var.get()
-        scope_text = {
-            "selected": "Selected Objects",
-            "current": "Current Page",
-            "all": "All Pages"
-        }.get(scope, "no scope selected")
+        #     scope_text = {
+        #         "selected": "Selected Objects",
+        #         "current": "Current Page",
+        #         "all": "All Pages"
+        #     }.get(scope, "no scope selected")
 
         if not find_text:
             self.message_logger.log_message('ERROR', "Error: Find text cannot be empty.")
             return
 
-        scripts_dir = self.get_scripts_dir()
+        # Create dictionary of global variables
+        glob_var = [
+            ["::find_text", find_text],
+            ["::replace_text", replace_text],
+            ["::scope", scope]
+        ]
 
-        script_path = os.path.join(scripts_dir, script_name)
+        def execution_callback(result):
+            self.replace_button.config(state='normal')
+            if not result['success']:
+                self.message_logger.log_message('ERROR', f"Text replacement failed: {result.get('error', 'Unknown error')}")
 
-        if not os.path.exists(script_path):
-            self.message_logger.log_message('ERROR', f'Script file "{script_path}" not found!')
-            return
+        # Update button state
+        self.replace_button.config(state='disabled')
 
-        try:
-            # Read or create the script file
-            with open(script_path, "r") as f:
-                lines = f.readlines()
+        # Execute the script
+        success = self.script_runner.execute_script(script_name, glob_var, execution_callback)
 
-            # Prepare the new replace command
-            # new_line = f'replaceSelectedTexts "{find_text}" "{replace_text}" "{self.scope_var.get()}" \n'
-            new_line = f'replaceSelectedTexts "{find_text}" "{replace_text}" \n'
-
-            # Replace or append the last line
-            if lines and lines[-1].strip().startswith("replaceSelectedTexts"):
-                lines[-1] = new_line
-            else:
-                lines.append(new_line)
-
-            # Save the updated script
-            with open(script_path, "w") as f:
-                f.writelines(lines)
-
-            # Execute the script in OrCAD
-            self.screen_handler.execute_in_orcad(script_path, self.message_logger)
-
-        except Exception as e:
-            self.message_logger.log_message('ERROR', f"Error updating script: {str(e)}")
+        if not success:
+            self.replace_button.config(state='normal')
