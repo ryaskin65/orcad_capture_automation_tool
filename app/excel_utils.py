@@ -1,3 +1,4 @@
+# 2025.10.18
 from tkinter import ttk
 import openpyxl
 import csv
@@ -117,9 +118,9 @@ class ExcelUtils:
             self.message_logger.log_message('ERROR', f"Error loading Excel: {str(e)}")
             return False
 
-    def load_csv_to_treeview(self, csv_path: str, tree: ttk.Treeview, skip_rows: int = 1, delimiter: str = ',') -> bool:
+    def load_csv_to_treeview(self, csv_path: str, tree: ttk.Treeview, skip_rows: int = 0, delimiter: str = ',') -> bool:
         """
-        Load data from CSV file into Treeview widget
+        Load data from CSV file into Treeview widget with dynamic columns
 
         Args:
             csv_path: Path to CSV file
@@ -135,27 +136,49 @@ class ExcelUtils:
             for item in tree.get_children():
                 tree.delete(item)
 
-            # Read CSV file
-            with open(csv_path, 'r', encoding='utf-8') as csv_file:
-                csv_reader = csv.reader(csv_file, delimiter=delimiter)
+            # Read CSV file with different encodings
+            encodings = ['utf-8', 'cp1251', 'latin-1']
+            data_rows = []
 
-                # Skip header rows if needed
-                for _ in range(skip_rows):
-                    next(csv_reader, None)
+            for encoding in encodings:
+                try:
+                    with open(csv_path, 'r', encoding=encoding) as csv_file:
+                        csv_reader = csv.reader(csv_file, delimiter=delimiter)
+                        data_rows = list(csv_reader)
+                    break
+                except UnicodeDecodeError:
+                    continue
+            else:
+                self.message_logger.log_message('ERROR', "Failed to read CSV file with any encoding")
+                return False
 
-                # Configure Treeview columns based on first data row
-                first_row = next(csv_reader, None)
-                if first_row:
-                    tree["columns"] = [f"col_{i}" for i in range(len(first_row))]
-                    for i, col in enumerate(tree["columns"]):
-                        tree.heading(col, text=f"Column {i + 1}")
+            if not data_rows:
+                self.message_logger.log_message('WARNING', "CSV file is empty")
+                return True
 
-                    # Insert first row
-                    tree.insert("", "end", values=first_row)
+            # Use first row as column headers
+            headers = data_rows[0] if data_rows else []
 
-                    # Insert remaining rows
-                    for row in csv_reader:
-                        tree.insert("", "end", values=row)
+            # Skip header row for data
+            data_rows = data_rows[1:] if len(data_rows) > 1 else []
+
+            if not headers:
+                self.message_logger.log_message('WARNING', "No headers found in CSV file")
+                return True
+
+            # Configure Treeview columns
+            tree["columns"] = [f"col_{i}" for i in range(len(headers))]
+
+            # Set column headings from CSV first row
+            for i, header in enumerate(headers):
+                tree.heading(f"col_{i}", text=str(header))
+                tree.column(f"col_{i}", width=100)
+
+            # Insert all data rows
+            for row in data_rows:
+                # Pad row with empty values if it has fewer columns than headers
+                padded_row = row + [''] * (len(headers) - len(row))
+                tree.insert("", "end", values=padded_row)
 
             return True
 

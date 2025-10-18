@@ -1,11 +1,6 @@
-# from pywinauto import Application
-# # Подключаемся к уже запущенному OrCAD Capture
-# app = Application(backend="uia").connect(class_name="OrCaptureFrame")
-# # Выводим структуру элементов для анализа
-# app.window(class_name="OrCaptureFrame").print_control_identifiers(depth=3)
-
-import pyautogui
+# 2025.10.18
 import time
+import pyautogui
 import win32api
 import ctypes
 import win32gui
@@ -112,29 +107,10 @@ class ScreenHandler:
         # Clear command window and execute command
         pyautogui.write("cls\n")
         time.sleep(0.5)
-        # # pyautogui.write(f'set ::find_text "{find_text}"\n')
-        # pyautogui.write(f'set ::find_text 22\n')
-        # time.sleep(0.5)
-        # # pyautogui.write(f'set ::replace_text "{replace_text}"\n')
-        # pyautogui.write(f'set ::replace_text 20\n')
-        # time.sleep(0.5)
-        # # pyautogui.write(f'set ::scope "{scope}"\n')
 
         # Type the source command and press Enter
         script_path = script_path.replace('\\', '/')
         command = f'source "{script_path}"'
         pyautogui.write(command)
         pyautogui.press('enter')
-        time.sleep(2)
-
-        # Find and click OrRandomView window
-        if wait_and_clic > 0:
-            time.sleep(wait_and_clic)
-            view_hwnd, area = self.find_largest_visible_window(main_hwnd, "OrRandomView")
-            if view_hwnd and area > 10000:
-                win32gui.SetForegroundWindow(main_hwnd)
-                time.sleep(0.3)
-                self.click_window_left_top(view_hwnd)
-
-        self.message_logger.log_message('SUCCESS', f"Executed command: {command}")
         return True

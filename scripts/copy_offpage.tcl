@@ -1,6 +1,7 @@
-# 02.10.2025
-# Improved script to copy coordinates and names of offPages to CSV file
+# 2025.10.18
+# Script to copy coordinates and names of offPages to CSV file
 
+################################################################################
 proc compareCoordinates {a b} {
     # Compare by X coordinate (index 0), then by Y coordinate (index 1)
     set aX [lindex $a 0]
@@ -24,6 +25,7 @@ proc compareCoordinates {a b} {
     return 0
 }
 
+################################################################################
 proc compareByY {a b} {
     # Compare by Y coordinate only
     set aY [lindex $a 1]
@@ -36,41 +38,7 @@ proc compareByY {a b} {
     return 0
 }
 
-proc exportActivePageOffPages {csvFile} {
-    puts "Starting export script"
-
-    set lSession $::DboSession_s_pDboSession
-    DboSession -this $lSession
-    set lStatus [DboState]
-    set lNullObj NULL
-    
-    set lPage [GetActivePage]
-    if {$lPage == $lNullObj} {
-        puts "ERROR: No active page found!"
-        return -1
-    }
-
-    # Collect all off-page connector data
-    set offPageDataList [collectOffPageData $lPage $lStatus]
-    
-    if {[llength $offPageDataList] == 0} {
-        puts "No off-page connectors found on the active page"
-        return 0
-    }
-
-    # Sort data by coordinates (X then Y)
-    set sortedData [lsort -command compareCoordinates $offPageDataList]
-    
-    # Group by X coordinate (difference <= 50) and sort each group by Y
-    set groupedData [groupAndSortByXCoordinate $sortedData 50]
-    
-    # Export to CSV
-    exportToCsv $csvFile $groupedData
-    
-    puts "Export completed. [llength $offPageDataList] connectors saved in $csvFile"
-    return [llength $offPageDataList]
-}
-
+################################################################################
 proc collectOffPageData {lPage lStatus} {
     set offPageDataList []
     set lOffPagesIter [$lPage NewOffPageConnectorsIter $lStatus $::IterDefs_ALL]
@@ -96,6 +64,7 @@ proc collectOffPageData {lPage lStatus} {
     return $offPageDataList
 }
 
+################################################################################
 proc getOffPageAbsoluteCoords {lOffPage lStatus} {
     set lRect [$lOffPage GetBoundingBox]
     set lUpperLeft [DboTclHelper_sGetCRectTopLeft $lRect]
@@ -109,12 +78,14 @@ proc getOffPageAbsoluteCoords {lOffPage lStatus} {
     return [list [expr $X + $lrelX] [expr $Y + $lrelY]]
 }
 
+################################################################################
 proc getOffPageName {lOffPage} {
     set nameCStr [DboTclHelper_sMakeCString]
     $lOffPage GetName $nameCStr
     return [DboTclHelper_sGetConstCharPtr $nameCStr]
 }
 
+################################################################################
 proc groupAndSortByXCoordinate {sortedData maxXDifference} {
     set groups {}
     set currentGroup {}
@@ -144,6 +115,7 @@ proc groupAndSortByXCoordinate {sortedData maxXDifference} {
     return $groups
 }
 
+################################################################################
 proc exportToCsv {csvFile groups} {
     set outFile [open $csvFile w]
     
@@ -180,5 +152,63 @@ proc exportToCsv {csvFile groups} {
     puts "Exported [llength $groups] groups with [llength $groups] empty separator columns"
 }
 
-# Example execution
-exportActivePageOffPages D:/py/Git_OrCAD/data/offpage.csv
+################################################################################
+proc SafeLog {message} {
+	global scriptDir
+	set timestamp [clock format [clock seconds] -format "%Y.%m.%d %H:%M:%S"]
+	set logEntry "$timestamp - $message"
+	#puts "LOG: $logEntry"
+	catch {
+		set logPath [file join $scriptDir "script_safe.log"]
+		if {$message == "Script started"} {
+			set fileId [open $logPath "w"]
+		} else {
+			set fileId [open $logPath "a"]
+		}
+		puts $fileId $logEntry
+		close $fileId
+	}
+}
+
+################################################################################
+proc exportActivePageOffPages {csvFile} {
+	SafeLog "Script started"
+
+    set lSession $::DboSession_s_pDboSession
+    DboSession -this $lSession
+    set lStatus [DboState]
+    set lNullObj NULL
+    
+    set lPage [GetActivePage]
+    if {$lPage == $lNullObj} {
+        puts "ERROR: No active page found!"
+        return -1
+    }
+
+    # Collect all off-page connector data
+    set offPageDataList [collectOffPageData $lPage $lStatus]
+    
+    if {[llength $offPageDataList] == 0} {
+        puts "No off-page connectors found on the active page"
+        return 0
+    }
+
+    # Sort data by coordinates (X then Y)
+    set sortedData [lsort -command compareCoordinates $offPageDataList]
+    
+    # Group by X coordinate (difference <= 50) and sort each group by Y
+    set groupedData [groupAndSortByXCoordinate $sortedData 50]
+    
+    # Export to CSV
+    exportToCsv $csvFile $groupedData
+    
+    puts "Export completed. [llength $offPageDataList] connectors saved in $csvFile"
+	SafeLog "Script done!"
+}
+
+################################################################################
+if {[info exists ::path_to_csv_file]} {
+	exportActivePageOffPages $::path_to_csv_file
+} else {
+	puts "ERROR: Global variables path_to_csv_file not set!"
+}

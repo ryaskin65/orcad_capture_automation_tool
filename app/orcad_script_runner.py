@@ -66,13 +66,16 @@ class OrcadScriptRunner:
         """Create simple TCL script for run script"""
         script_file = os.path.join(self.scripts_dir, 'run_script.tcl')
         main_script_path = os.path.join(self.scripts_dir, script_name).replace('\\', '/')
+        # Build variable assignments
+        var_assignments = "\n".join([f'set {var_name} "{var_value}"' for var_name, var_value in glob_var])
+
+        # Build variable cleanup
+        var_cleanup = "\n".join(
+            [f'if {{[info exists {var_name}]}} {{unset {var_name}}}' for var_name, var_value in glob_var])
         script_content = f"""
 set start_time [clock seconds]
 puts "Start script"
-"""
-        for var_name, var_value in glob_var:
-            script_content += f'set {var_name} "{var_value}"\n'
-        script_content += f"""
+{var_assignments}
 if {{[catch {{source "{main_script_path}"}} err]}} {{
     puts $err
 }} else {{
@@ -85,6 +88,7 @@ set safeVars {{start_time end_time execution_time err}}
 foreach var $safeVars {{
     if {{[info exists $var]}} {{unset $var}}
 }}
+{var_cleanup}
 """
         for var_name, var_value in glob_var:
             script_content += f'if {{[info exists {var_name}]}} {{unset {var_name}}}\n'

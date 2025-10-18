@@ -1,3 +1,4 @@
+# 2025.10.18
 import tkinter as tk
 from tkinter import ttk, filedialog
 import os
@@ -20,17 +21,15 @@ class CopyTextTab:
         self.text_area.grid(row=0, column=0, columnspan=4, padx=5, pady=5)
 
         # Buttons
-        ttk.Button(self.frame, text="Save to File", command=self.save_file).grid(row=1, column=0, padx=5, pady=5)
-        ttk.Button(self.frame, text="Clear", command=self.clear_text).grid(row=1, column=1, padx=5, pady=5)
-        ttk.Button(self.frame, text="Copy text", command=self.copy_text).grid(row=1, column=2, padx=5, pady=5)
-        ttk.Button(self.frame, text="Load text", command=self.load_text).grid(row=1, column=3, padx=5, pady=5)
+        ttk.Button(self.frame, text="Copy selected text", command=self.copy_text).grid(row=1, column=2, padx=5, pady=5)
+        ttk.Button(self.frame, text="Load from csv", command=self.load_text).grid(row=1, column=3, padx=5, pady=5)
 
         # Bind keyboard shortcuts
         self.text_area.bind("<Control-a>", self.select_all)
         self.text_area.bind("<Control-c>", lambda e: self.text_area.event_generate("<<Copy>>"))
         self.text_area.bind("<Control-v>", lambda e: self.text_area.event_generate("<<Paste>>"))
         self.text_area.bind("<Control-x>", lambda e: self.text_area.event_generate("<<Cut>>"))
-        self.text_area.bind("<Control-s>", self.save_file)
+        # self.text_area.bind("<Control-s>", self.save_file)
 
     def get_scripts_dir(self):
         """Get path to scripts directory"""
@@ -47,21 +46,6 @@ class CopyTextTab:
             scripts_dir = os.path.join(os.path.dirname(app_dir), "scripts")
 
         return scripts_dir
-
-    def save_file(self, event=None):
-        """Save text to a file."""
-        file_path = filedialog.asksaveasfilename(defaultextension=".txt",
-                                                 filetypes=[("Text files", "*.txt"), ("All files", "*.*")])
-        if file_path:
-            with open(file_path, "w") as f:
-                f.write(self.text_area.get("1.0", tk.END))
-            self.message_logger.log_message(f"File saved to {file_path}")
-        return "break"
-
-    def clear_text(self):
-        """Clear the text area."""
-        self.text_area.delete("1.0", tk.END)
-        self.message_logger.log_message('SUCCESS', "Text cleared.")
 
     def copy_text(self):
         """Copy the text area."""
@@ -104,8 +88,9 @@ class CopyTextTab:
     def load_text(self):
         """Clear the text area."""
         scripts_dir = self.get_scripts_dir()
+        csv_dir = os.path.join(os.path.dirname(scripts_dir), "data")
+        csv_path = os.path.join(csv_dir, file_csv)
 
-        csv_path = os.path.join(scripts_dir, file_csv)
         if os.path.exists(csv_path):
             self.text_area.delete("1.0", tk.END)
             with open(csv_path, "r") as f:
