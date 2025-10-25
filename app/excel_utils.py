@@ -1,4 +1,4 @@
-# 2025.10.18
+# RIGa&DeepSeek 24.10.2025
 from tkinter import ttk
 import openpyxl
 import csv

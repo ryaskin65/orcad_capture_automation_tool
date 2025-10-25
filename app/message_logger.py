@@ -1,4 +1,4 @@
-# 2025.10.18
+# RIGa&DeepSeek 24.10.2025
 import tkinter as tk
 from tkinter import scrolledtext
 from datetime import datetime
@@ -10,6 +10,7 @@ class MessageLogger:
     def __init__(self, log_widget: tk.scrolledtext.ScrolledText):
         self.log_widget = log_widget
         self.log_widget.configure(state='disabled')
+        self.main_app = None  # Reference to main application
 
         # Color settings for different log levels
         self.colors = {
@@ -26,6 +27,10 @@ class MessageLogger:
 
         # Bind right-click context menu and Ctrl+C
         self._setup_context_menu()
+
+    def set_main_app(self, main_app):
+        """Set reference to main application for accessing global flags"""
+        self.main_app = main_app
 
     def _setup_context_menu(self):
         """Setup context menu for copy functionality"""

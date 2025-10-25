@@ -1,4 +1,4 @@
-# 2025.10.18
+# RIGa&DeepSeek 24.10.2025
 import time
 import pyautogui
 import win32api
@@ -6,8 +6,8 @@ import ctypes
 import win32gui
 import win32con
 
-
 english_layout_id = 0x0409
+
 
 class ScreenHandler:
     def __init__(self, message_logger):
@@ -31,6 +31,45 @@ class ScreenHandler:
             layout_id
         )
 
+    def set_english_layout(self):
+        """Switch to English layout"""
+        try:
+            # Method 1: Broadcast message
+            win32api.SendMessage(
+                win32con.HWND_BROADCAST,
+                win32con.WM_INPUTLANGCHANGEREQUEST,
+                0,
+                english_layout_id
+            )
+
+            # Method 2: Alternative approach
+            layout_handle = ctypes.windll.user32.LoadKeyboardLayoutW("00000409", 0)
+            ctypes.windll.user32.ActivateKeyboardLayout(layout_handle, 0)
+
+            time.sleep(0.5)  # Wait for layout change
+            return True
+        except Exception as e:
+            self.message_logger.log_message('ERROR', f'Failed to set English layout: {e}')
+            return False
+
+    def set_english_layout_safe(self):
+        """Safely switch to English layout with verification"""
+        original_layout = self.get_current_layout()
+
+        if original_layout == english_layout_id:
+            return True  # Already English
+
+        # Try to switch to English
+        success = self.set_english_layout()
+
+        if success:
+            # Verify the change
+            time.sleep(0.5)
+            new_layout = self.get_current_layout()
+            return new_layout == english_layout_id
+
+        return False
+
     def ensure_caps_lock_off(self):
         caps_lock_state = win32api.GetKeyState(win32con.VK_CAPITAL)
         if caps_lock_state & 0x0001:
@@ -38,11 +77,6 @@ class ScreenHandler:
             win32api.keybd_event(win32con.VK_CAPITAL, 0, win32con.KEYEVENTF_EXTENDEDKEY | win32con.KEYEVENTF_KEYUP, 0)
             return True
         return False
-
-    def set_english_layout_safe(self):
-        self.ensure_caps_lock_off()
-        if not (self.get_current_layout() == english_layout_id):
-            self.set_keyboard_layout(english_layout_id)
 
     def find_largest_visible_window(self, main_hwnd, target_class):
         """Find the largest visible window of a specific class among child windows."""
@@ -85,6 +119,12 @@ class ScreenHandler:
 
     def execute_in_orcad(self, script_path, message_logger, wait_and_clic=0):
         """Execute the source command in OrCAD Capture command window."""
+        # Check if we should proceed with OrCAD execution
+        if hasattr(message_logger, 'main_app') and message_logger.main_app.non_english_layout_detected:
+            message_logger.log_message('ERROR', 'Cannot execute OrCAD script: Non-English layout detected')
+            message_logger.log_message('ERROR', 'Please restart the application with English keyboard layout')
+            return False
+
         self.set_english_layout_safe()
 
         main_hwnd = win32gui.FindWindow("OrCaptureFrame", None)

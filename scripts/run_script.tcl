@@ -1,11 +1,9 @@
 
 set start_time [clock seconds]
-puts "Start script"
-set ::path_to_csv_file "D:/py/Git_OrCAD/data/offpage.csv"
-if {[catch {source "D:/py/Git_OrCAD/scripts/replace_offpage.tcl"} err]} {
+set ::path_to_csv_file "D:/py/Git_OrCAD/data/W203.csv"
+if {[catch {source "D:/py/Git_OrCAD/scripts/cable.tcl"} err]} {
     puts $err
 } else {
-    puts "Script done!"
     set end_time [clock seconds]
     set execution_time [expr {$end_time - $start_time}]
     puts "EXECUTION_TIME:$execution_time sec"

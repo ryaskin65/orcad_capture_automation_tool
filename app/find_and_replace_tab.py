@@ -1,4 +1,4 @@
-# 2025.10.23
+# RIGa&DeepSeek 24.10.2025
 import tkinter as tk
 from tkinter import ttk
 import os
