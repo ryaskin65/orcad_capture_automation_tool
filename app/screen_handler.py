@@ -1,4 +1,4 @@
-# RIGa&DeepSeek 24.10.2025
+# RIGa&DeepSeek 26.10.2025
 import time
 import pyautogui
 import win32api
@@ -35,16 +35,11 @@ class ScreenHandler:
         """Switch to English layout"""
         try:
             # Method 1: Broadcast message
-            win32api.SendMessage(
-                win32con.HWND_BROADCAST,
-                win32con.WM_INPUTLANGCHANGEREQUEST,
-                0,
-                english_layout_id
-            )
+            self.set_keyboard_layout(english_layout_id)
 
-            # Method 2: Alternative approach
-            layout_handle = ctypes.windll.user32.LoadKeyboardLayoutW("00000409", 0)
-            ctypes.windll.user32.ActivateKeyboardLayout(layout_handle, 0)
+            # # Method 2: Alternative approach
+            # layout_handle = ctypes.windll.user32.LoadKeyboardLayoutW("00000409", 0)
+            # ctypes.windll.user32.ActivateKeyboardLayout(layout_handle, 0)
 
             time.sleep(0.5)  # Wait for layout change
             return True
@@ -55,6 +50,7 @@ class ScreenHandler:
     def set_english_layout_safe(self):
         """Safely switch to English layout with verification"""
         original_layout = self.get_current_layout()
+        self.ensure_caps_lock_off()
 
         if original_layout == english_layout_id:
             return True  # Already English
@@ -64,9 +60,7 @@ class ScreenHandler:
 
         if success:
             # Verify the change
-            time.sleep(0.5)
-            new_layout = self.get_current_layout()
-            return new_layout == english_layout_id
+            return self.get_current_layout() == english_layout_id
 
         return False
 
@@ -108,13 +102,6 @@ class ScreenHandler:
         rect = win32gui.GetWindowRect(hwnd)
         x = (rect[0] + rect[2]) // 2
         y = (rect[1] + rect[3]) // 2
-        pyautogui.click(x, y)
-
-    def click_window_left_top(self, hwnd):
-        """Click the center of a window."""
-        rect = win32gui.GetWindowRect(hwnd)
-        x = rect[0] + 10
-        y = rect[1] + 10
         pyautogui.click(x, y)
 
     def execute_in_orcad(self, script_path, message_logger, wait_and_clic=0):

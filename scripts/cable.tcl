@@ -1,5 +1,5 @@
 # RIGa&DeepSeek 25.10.2025
-# Script to draw cable from csv table
+# Script to cable automation from csv table
 
 # Global constant
 set STEP_XY 2.54
@@ -29,6 +29,46 @@ set NameRightSide ""
 set NameLeftSide ""
 set PageCount 0
 set PageNumber 0
+
+# The procedure for checking that the active page is A3 size and the dimension is millimeters
+proc CheckPageA3Millimeters {} {
+    set lPage [GetActivePage]
+    set lNullObj NULL
+    
+    if {$lPage == $lNullObj} {
+        SafeLog "ERROR: No active page found"
+        return false
+    }
+    
+    # We get the page dimensions (in thousandths of a millimeter)
+    set pageWidth [$lPage GetPageWidth]
+    set pageHeight [$lPage GetPageHeight]
+    set isMetric [$lPage GetIsMetric]
+    
+    SafeLog "Page dimensions: [expr {$pageWidth / 1000.0}]x[expr {$pageHeight / 1000.0}]mm, Is metric: $isMetric"
+    
+    # Checking units of measurement
+    if {!$isMetric} {
+        SafeLog "ERROR: Page units are not metric"
+        return false
+    }
+    
+    # Checking the A3 size (420x297 mm in thousandths)
+    set expectedWidth 420000
+    set expectedHeight 297000
+    set tolerance 1000  ; # Tolerance 1mm
+    
+    set widthOk [expr {abs($pageWidth - $expectedWidth) <= $tolerance}]
+    set heightOk [expr {abs($pageHeight - $expectedHeight) <= $tolerance}]
+    
+    if {!$widthOk || !$heightOk} {
+        SafeLog "ERROR: Page size is not A3. Expected: 420x297mm, Actual: [expr {$pageWidth / 1000.0}]x[expr {$pageHeight / 1000.0}]mm"
+        return false
+    }
+    
+    SafeLog "SUCCESS: Page is A3 size (420x297mm) with millimeter units"
+    return true
+}
 
 # Places text on the schematic at specified coordinates
 #  X, Y - Starting coordinates
@@ -115,7 +155,7 @@ proc PlaceWireCheck {X1 Y1 X2 Y2} {
 }
 
 # Place line with check coordinates
-proc PlaceLineCheck {X1 Y1 X2 Y2} {
+proc PlaceLineSieldCheck {X1 Y1 X2 Y2} {
 	SafeLog "Place line: X1=[format "%.2f" $X1], Y1=[format "%.2f" $Y1], X2=[format "%.2f" $X2], Y2=[format "%.2f" $Y2]"
 	global A3_WIDTH A3_HEIGHT
 	# Check if coordinates are numeric
@@ -131,6 +171,7 @@ proc PlaceLineCheck {X1 Y1 X2 Y2} {
 	    return
 	}
 	PlaceLine $X1 $Y1 $X2 $Y2
+	SetLineStyle 2
 }
 
 # Place arc shield top with check coordinates
@@ -220,10 +261,8 @@ proc PlaceShieldCheck {X Y L C} {
 	set Y1 [expr $Y + 3 * $STEP_XY]
 	set X2 [expr $X + 4 * $STEP_XY]
 	set Y2 [expr $Y1 + $L - 2 * $STEP_XY]
-	PlaceLineCheck $X1 $Y1 $X1 $Y2
-	SetLineStyle 2
-	PlaceLineCheck $X2 $Y1 $X2 $Y2
-	SetLineStyle 2
+	PlaceLineSieldCheck $X1 $Y1 $X1 $Y2
+	PlaceLineSieldCheck $X2 $Y1 $X2 $Y2
 	UnSelectAll
 	switch -exact $C {
 		"LEFT" {
@@ -231,31 +270,31 @@ proc PlaceShieldCheck {X Y L C} {
 			set Y1 [expr $Y + $L + 3 * $STEP_XY]
 			set X2 [expr $X - 16 * $STEP_XY]
 			set Y2 [expr $Y1 + $STEP_XY]
-			PlaceWire $X1 $Y1 $X1 $Y2
-			PlaceWire $X1 $Y2 $X2 $Y2
-			PlaceWire $X2 $Y2 $X2 $Y1
+			PlaceWireCheck $X1 $Y1 $X1 $Y2
+			PlaceWireCheck $X1 $Y2 $X2 $Y2
+			PlaceWireCheck $X2 $Y2 $X2 $Y1
 		}
 		"RIGHT" {
 			set X1 [expr $X + 2 * $STEP_XY]
 			set Y1 [expr $Y + $L + 3 * $STEP_XY]
 			set X2 [expr $X + 19 * $STEP_XY]
 			set Y2 [expr $Y1 + $STEP_XY]
-			PlaceWire $X1 $Y1 $X1 $Y2
-			PlaceWire $X1 $Y2 $X2 $Y2
-			PlaceWire $X2 $Y2 $X2 $Y1
+			PlaceWireCheck $X1 $Y1 $X1 $Y2
+			PlaceWireCheck $X1 $Y2 $X2 $Y2
+			PlaceWireCheck $X2 $Y2 $X2 $Y1
 		}
 		"DOWN" {
 			set X1 [expr $X + 2 * $STEP_XY]
 			set Y1 [expr $Y + $L + 3 * $STEP_XY]
 			set Y2 [expr $Y1 + 2 * $STEP_XY]
-			PlaceWire $X1 $Y1 $X1 $Y2
+			PlaceWireCheck $X1 $Y1 $X1 $Y2
 		}
 		default {}
 	}
 	return
 }
 
-# Draw left and right Out OffPage
+# Place left and right OutOffPage
 proc PlaceOutOffPageCheck {SrcCon DstCon Y} {
 	global STEP_XY A3_WIDTH A3_HEIGHT
 	global offsetNameLeftOffPageX StartTextPinX pathLib
@@ -268,9 +307,9 @@ proc PlaceOutOffPageCheck {SrcCon DstCon Y} {
 		SafeLog "OffPage coordinates out of bounds: Y=[format "%.2f" $Y], LeftX=[format "%.2f" $LeftOffPageX], RightX=[format "%.2f" $RightOffPageX]"
 		return
 	}
-	if {$DstCon > ""} {
-		PlaceOffPage $LeftOffPageX $OffPageY $pathLib "OFFPAGELEFT-R" "OFFPAGELEFT-R"
-		SetProperty {Name} $DstCon
+	if {$DstCon ne ""} {
+		SafeLog "Place OffPageLeft-R: X=[format "%.2f" $LeftOffPageX], Y=[format "%.2f" $OffPageY], $DstCon"
+		PlaceOffPage $LeftOffPageX $OffPageY $pathLib "OFFPAGELEFT-R" $DstCon
 		SelectObject $StartTextPinX $Y FALSE
 		set selObj [GetSelectedObjects]
 		set lNullObj NULL
@@ -278,16 +317,15 @@ proc PlaceOutOffPageCheck {SrcCon DstCon Y} {
 			set lPoint [DboTclHelper_sMakeCPoint $offsetNameLeftOffPageX 5]
 			$selObj SetLocation $lPoint
 			DboTclHelper_sDeleteCPoint $lPoint
-			SafeLog "Place OffPageLeft-R: X=[format "%.2f" $LeftOffPageX], Y=[format "%.2f" $OffPageY], $DstCon"
 		}
 	}
-	if {$SrcCon > ""} {
-		PlaceOffPage $RightOffPageX $OffPageY $pathLib "OFFPAGELEFT-L" $SrcCon
+	if {$SrcCon ne ""} {
 		SafeLog "Place OffPageLeft-L X=[format "%.2f" $RightOffPageX], Y=[format "%.2f" $OffPageY], $SrcCon"
+		PlaceOffPage $RightOffPageX $OffPageY $pathLib "OFFPAGELEFT-L" $SrcCon
 	}
 }
 
-# Draw left and right In OffPage
+# Place left and right InOffPage
 proc PlaceInOffPageCheck {SrcCon DstCon Y} {
 	global STEP_XY A3_WIDTH A3_HEIGHT
 	global offsetNameLeftOffPageX StartTextPinX pathLib
@@ -300,7 +338,8 @@ proc PlaceInOffPageCheck {SrcCon DstCon Y} {
 		SafeLog "OffPage coordinates out of bounds: Y=[format "%.2f" $Y], LeftX=[format "%.2f" $LeftOffPageX], RightX=[format "%.2f" $RightOffPageX]"
 		return
 	}
-	if {$DstCon > ""} {
+	if {$DstCon ne ""} {
+		SafeLog "Place OffPageLeft-L Mirror X=[format "%.2f" $LeftOffPageX], Y=[format "%.2f" $OffPageY], $DstCon"
 		PlaceOffPage $LeftOffPageX $OffPageY $pathLib "OFFPAGELEFT-L" "OFFPAGELEFT-L"
 		MirrorHorizontal
 		SetProperty {Name} $DstCon
@@ -311,24 +350,23 @@ proc PlaceInOffPageCheck {SrcCon DstCon Y} {
 			set lPoint [DboTclHelper_sMakeCPoint $offsetNameLeftOffPageX 5]
 			$selObj SetLocation $lPoint
 			DboTclHelper_sDeleteCPoint $lPoint
-			SafeLog "Place OffPageLeft-R X=[format "%.2f" $LeftOffPageX], Y=[format "%.2f" $OffPageY], $DstCon"
 		}
 	}
-	if {$SrcCon > ""} {
+	if {$SrcCon ne ""} {
+		SafeLog "Place OffPageLeft-R Mirror X=[format "%.2f" $RightOffPageX], Y=[format "%.2f" $OffPageY], $SrcCon"
 		PlaceOffPage $RightOffPageX $OffPageY $pathLib "OFFPAGELEFT-R" "OFFPAGELEFT-R"
 		MirrorHorizontal
 		SetProperty {Name} $SrcCon
-		SafeLog "Place OffPageLeft-L X=[format "%.2f" $RightOffPageX], Y=[format "%.2f" $OffPageY], $SrcCon"
 	}
 }
 
-# Draw SPLC
-proc DrawSPLC {X Y} {
+# Place SPLC
+proc PlaceSPLC {X Y} {
 	global ver tclLibName STEP_XY A3_WIDTH A3_HEIGHT
 	if {[string is double -strict $X] && [string is double -strict $Y]} {
 		# Check if coordinates are within A3 bounds
 		if {($X < 0) || ($X > $A3_WIDTH) || ($Y < 0) || ($Y > $A3_HEIGHT)} {
-			SafeLog [format "Position error in DrawSPLC X:%s Y:%s" $X $Y]
+			SafeLog [format "Position error in PlaceSPLC X:%s Y:%s" $X $Y]
 		} else {
 
 			if {$ver > 16} {
@@ -336,14 +374,14 @@ proc DrawSPLC {X Y} {
 			} else {
 				PlacePart $X [expr $Y - $STEP_XY/2] $tclLibName "SPLC" "" FALSE
 			}
-			SafeLog [format "Non-numeric coordinates in DrawSPLC X:%s Y:%s" $X $Y]
+			SafeLog [format "Non-numeric coordinates in PlaceSPLC X:%s Y:%s" $X $Y]
 		}
 	} else {
-		SafeLog [format "Non-numeric coordinates in DrawSPLC X:%s Y:%s" $X $Y]
+		SafeLog [format "Non-numeric coordinates in PlaceSPLC X:%s Y:%s" $X $Y]
 	}
 }
 
-# Get group identifier from pin name for cable drawing
+# Get group identifier from pin name for cable placing
 # - If all pins in connector belong to groups A1-A9, B1-B9, C1-C9, D1-D9: returns "CONNECTOR/GROUP"
 # - Otherwise: returns "CONNECTOR"  
 # - If no connector name (no slash): returns "GROUP" if pin matches group pattern, else ""
@@ -435,7 +473,7 @@ proc PlaceRectangleCheckConnectors {arrayCon arrayNameCon X} {
 		} else {
 			set I2 $arCon($i)
 			set L [expr ($I2 - $I1 + 1) * $StepWireY]
-			# Checking if a rectangle needs to be drawn
+			# Checking if a rectangle needs to be place
 			if {$arNameCon($it) != ""} {
 				PlaceRectangleCheck $X $Y $L $W
 				# Place the text - connector name
@@ -499,13 +537,13 @@ proc PlaceShieldChecks {arrayShield X sideLeftRight arrayCon} {
 					PlaceShieldCheck $X $Y $L "DOWN"
 				}
 			} err]} {
-				SafeLog "Error drawing shield at X=$X, Y=$Y: $err"
+				SafeLog "Error placing shield at X=$X, Y=$Y: $err"
 			}
 		}
 	}
 }
 
-proc DrawRightWireWithOffset {XDR YD Y Offset} {
+proc PlaceRightWireWithOffset {XDR YD Y Offset} {
 	if {[string is integer -strict $Offset]} {
 		global STEP_XY
 		# Right wire with offset (up or down)
@@ -529,7 +567,7 @@ proc DrawRightWireWithOffset {XDR YD Y Offset} {
 	}
 }
 
-proc DrawLeftWireWithOffset {XDL YD Y Offset} {
+proc PlaceLeftWireWithOffset {XDL YD Y Offset} {
 	if {[string is integer -strict $Offset]} {
 		global STEP_XY
 		# Left wire with offset (up or down)
@@ -553,18 +591,18 @@ proc DrawLeftWireWithOffset {XDL YD Y Offset} {
 	}
 }
 
-proc DrawHorizontalWireWithSPLC {WOL WOR WGL WGR XSL XSR XDL XDR Y} {
+proc PlaceHorizontalWireWithSPLC {WOL WOR WGL WGR XSL XSR XDL XDR Y} {
 	global StartWireX EndWireX STEP_XY A3_WIDTH A3_HEIGHT
 	# Validate all coordinates
 	foreach coord [list $XSL $XSR $XDL $XDR $Y $StartWireX $EndWireX] {
 		if {![string is double -strict $coord]} {
-			SafeLog "Error: Non-numeric coordinate in DrawHorizontalWireWithSPLC: $coord"
+			SafeLog "Error: Non-numeric coordinate in PlaceHorizontalWireWithSPLC: $coord"
 			return
 		}
 	}
 	# Check boundaries
 	if {$Y < 0 || $Y > $A3_HEIGHT || $StartWireX < 0 || $EndWireX > $A3_WIDTH} {
-		SafeLog "Error: Coordinates out of bounds in DrawHorizontalWireWithSPLC: Y=$Y, StartX=$StartWireX, EndX=$EndWireX"
+		SafeLog "Error: Coordinates out of bounds in PlaceHorizontalWireWithSPLC: Y=$Y, StartX=$StartWireX, EndX=$EndWireX"
 		return
 	}
 	# Horizontal wire with SPLC
@@ -575,7 +613,7 @@ proc DrawHorizontalWireWithSPLC {WOL WOR WGL WGR XSL XSR XDL XDR Y} {
 		}
 	} elseif {($WOR == 0) && ($WOL != 0)} {
 	# Right SPLC
-		DrawSPLC $XSR $Y
+		PlaceSPLC $XSR $Y
 		PlaceWireCheck [expr $XSR + 2 * $STEP_XY] $Y $EndWireX $Y
 		if {$WOL == ""} {
 			PlaceWireCheck $StartWireX $Y $XSR $Y
@@ -584,7 +622,7 @@ proc DrawHorizontalWireWithSPLC {WOL WOR WGL WGR XSL XSR XDL XDR Y} {
 		}
 	} elseif {($WOR != 0) && ($WOL == 0)} {
 	# Left SPLC
-		DrawSPLC $XSL $Y
+		PlaceSPLC $XSL $Y
 		PlaceWireCheck $StartWireX $Y $XSL $Y
 		if {$WOR == ""} {
 			PlaceWireCheck [expr $XSL + 2 * $STEP_XY] $Y $EndWireX $Y
@@ -593,8 +631,8 @@ proc DrawHorizontalWireWithSPLC {WOL WOR WGL WGR XSL XSR XDL XDR Y} {
 		}
 	} elseif {($WOR == 0) && ($WOL == 0)} {
 	# Right and left SPLC
-		DrawSPLC $XSL $Y
-		DrawSPLC $XSR $Y 
+		PlaceSPLC $XSL $Y
+		PlaceSPLC $XSR $Y 
 		PlaceWireCheck $StartWireX $Y $XSL $Y
 		PlaceWireCheck [expr $XSL + 2 * $STEP_XY] $Y $XSR $Y
 		PlaceWireCheck [expr $XSR + 2 * $STEP_XY] $Y $EndWireX $Y
@@ -610,7 +648,7 @@ proc DrawHorizontalWireWithSPLC {WOL WOR WGL WGR XSL XSR XDL XDR Y} {
 	}
 }
 
-proc DrawPage {fileId} {
+proc PlacePage {fileId} {
 	global STEP_XY
 	global offsetNameLeftOffPageX SpliceRightX SpliceLeftX ShieldRightX ShieldLeftX
 	global StepWireY StartWireY StartWireX EndWireX LeftOffPageX RightOffPageX LeftPartX RightPartX
@@ -793,7 +831,7 @@ proc DrawPage {fileId} {
 		}
 		# Y of wire
 		set Y [expr $StartWireY + $numLines * $StepWireY + $numSpaceLines * $StepWireY]
-		# Draw left and right OffPage
+		# Place left and right OffPage
 		if {($WireRightOffset($i) == "") || ($WireRightOffset($i) == 0)} {
 			set rightCon $RightConnector($i)
 		} else {
@@ -811,7 +849,7 @@ proc DrawPage {fileId} {
 			# In OffPage
 			PlaceInOffPageCheck $rightCon $leftCon $Y
 		}
-		# Draw wire from pin of left connector to pin of right connector
+		# Place wire from pin of left connector to pin of right connector
 		if {$SignalName($i) != "SPACE"} {
 			set WGR [expr {$WireInRightGroupe($i) == "" ? 0 : $WireInRightGroupe($i)}]
 			set WGL [expr {$WireInLeftGroupe($i) == "" ? 0 : $WireInLeftGroupe($i)}]
@@ -824,17 +862,17 @@ proc DrawPage {fileId} {
 			set XSR [expr $SpliceRightX - $StepWireY * 3 * $WGR]
 			set XSL [expr $SpliceLeftX  + $StepWireY * 3 * $WGL]
 			# Horizontal wire with SPLC
-			DrawHorizontalWireWithSPLC $WireLeftOffset($i) $WireRightOffset($i) $WGL $WGR $XSL $XSR $XDL $XDR $Y
-			# Draw right offset wire
-			DrawRightWireWithOffset $XDR $YDR $Y $WireRightOffset($i)
-			# Draw left offset wire
-			DrawLeftWireWithOffset $XDL $YDL $Y $WireLeftOffset($i)
+			PlaceHorizontalWireWithSPLC $WireLeftOffset($i) $WireRightOffset($i) $WGL $WGR $XSL $XSR $XDL $XDR $Y
+			# Place right offset wire
+			PlaceRightWireWithOffset $XDR $YDR $Y $WireRightOffset($i)
+			# Place left offset wire
+			PlaceLeftWireWithOffset $XDL $YDL $Y $WireLeftOffset($i)
 			# Left text - color
 			set XT $StartLeftTextColorX
 			set YT [expr $Y - $STEP_XY]
 			set LT [expr $STEP_XY * 10]
 			set WT $STEP_XY
-			if {$WidthLeftGauge($i) > ""} {
+			if {$WidthLeftGauge($i) ne ""} {
 				set T "$Color($i) $WidthLeftGauge($i)#"
 			} else {
 				set T "$Color($i)"
@@ -842,9 +880,9 @@ proc DrawPage {fileId} {
 			PlaceTextCheck $XT $YT $LT $WT $T 9 TRUE
 			# Right text - color
 			set XT $StartRightTextColorX
-			if {$WidthRightGauge($i) > ""} {
+			if {$WidthRightGauge($i) ne ""} {
 				set T "$Color($i) $WidthRightGauge($i)#"
-			} elseif {$WidthLeftGauge($i) > ""} {
+			} elseif {$WidthLeftGauge($i) ne ""} {
 				set T "$Color($i) $WidthLeftGauge($i)#"
 			} else {
 				set T "$Color($i)"
@@ -923,10 +961,10 @@ proc DrawPage {fileId} {
 	# Place right rectangle box
 	set X [expr $EndWireX + 6 * $STEP_XY]
 	PlaceRectangleCheck $X $Y $L $W
-	# Draw left rectangle connectors
+	# Place left rectangle connectors
 	set X [expr $StartWireX - 6 * $STEP_XY]
 	PlaceRectangleCheckConnectors arrayLineLeftConnector arrayNameLeftConnector $X
-	# Draw right rectangle connectors
+	# Place right rectangle connectors
 	set X [expr $EndWireX - $STEP_XY]
 	PlaceRectangleCheckConnectors arrayLineRightConnector arrayNameRightConnector $X
 	# Place text - name of destination (left)
@@ -937,11 +975,33 @@ proc DrawPage {fileId} {
 	set X1 [expr $EndWireX + $STEP_XY * 8]
 	set Y1 [expr $MiddleRectangleY - $STEP_XY * 2]
 	PlaceTextCheck $X1 $Y1 $L $W $NameRightSide 19 TRUE
-	# Draw left shields
+	# Place left shields
 	PlaceShieldChecks arrayLineLeftShield $ShieldLeftX "LEFT" arrayLineLeftConnector
-	# Draw right shields
+	# Place right shields
 	PlaceShieldChecks arrayLineRightShield $ShieldRightX "RIGHT" arrayLineRightConnector
-	#
+	
+    # Cleanup arrays to prevent memory leaks
+    if {[info exists RightConnector]} { array unset RightConnector }
+    if {[info exists SignalName]} { array unset SignalName }
+    if {[info exists LeftConnector]} { array unset LeftConnector }
+    if {[info exists InOut]} { array unset InOut }
+    if {[info exists WireType]} { array unset WireType }
+    if {[info exists WidthLeftGauge]} { array unset WidthLeftGauge }
+    if {[info exists Color]} { array unset Color }
+    if {[info exists WidthRightGauge]} { array unset WidthRightGauge }
+    if {[info exists WireRightOffset]} { array unset WireRightOffset }
+    if {[info exists WireInRightGroupe]} { array unset WireInRightGroupe }
+    if {[info exists WireLeftOffset]} { array unset WireLeftOffset }
+    if {[info exists WireInLeftGroupe]} { array unset WireInLeftGroupe }
+    
+    # Cleanup temporary arrays
+    catch {array unset arrayLineLeftShield}
+    catch {array unset arrayLineRightShield}
+    catch {array unset arrayLineLeftConnector}
+    catch {array unset arrayLineRightConnector}
+    catch {array unset arrayNameLeftConnector}
+    catch {array unset arrayNameRightConnector}
+
 	UnSelectAll
 }
 
@@ -963,7 +1023,7 @@ proc SafeLog {message} {
 }
 
 # Main procedure with global error handling
-proc drawCable {filePath} {
+proc PlaceCable {filePath} {
 	SafeLog "Script started"
 	global tclLibName pathLib
 	global ProjectNumber NameRightSide NameLeftSide PageCount PageNumber
@@ -994,74 +1054,86 @@ proc drawCable {filePath} {
 	set NameLeftSide ""
 	set PageCount 0
 	set PageNumber 0
+	set Result true
 
 	# get from file csv pins of connectors
 	if {![file exists $filePath]} {
-		SafeLog "File does not exist: $filePath"
-		return
+		SafeLog "Error: File does not exist: $filePath"
+		set Result false
 	}
-
-	if {[catch {open $filePath "r"} fileId]} {
-		SafeLog "Error: Cannot open file: $filePath"
-		return
-	}
-
-	# Count the number of PAGE entries in the CSV file
-	while {[gets $fileId line] >= 0} {
-		set elements [split $line ","]
-		set parName [lindex $elements 0]
-		if {$parName == "PAGE"} {
-			incr PageCount
+	if {$Result} {
+		if {[catch {open $filePath "r"} fileId]} {
+			SafeLog "Error: Cannot open file: $filePath"
+			set Result false
 		}
 	}
-	# Reset to file beginning
-	seek $fileId 0
-
-	if {$PageCount > 0} {
-		SafeLog "Found $PageCount pages in CSV"
-		set PageCount [expr $PageCount + 1]
-		set PageNumber 2
-	} else {
-		SafeLog "Pages not found in: $filePath"
-		close $fileId
-		return
-	}
-
-	#SelectPMItem "SCHEMATIC1"
-	while {TRUE} {
-		set PageName ""
+	if {$Result} {
+		# Count the number of PAGE entries in the CSV file
 		while {[gets $fileId line] >= 0} {
 			set elements [split $line ","]
 			set parName [lindex $elements 0]
-			set parValue [lindex $elements 1]
-			if {$parValue > ""} {
-				switch -exact $parName {
-					"ProjectNumber"   {set ProjectNumber $parValue}
-					"NameRightSide"   {set NameRightSide $parValue}
-					"NameLeftSide"    {set NameLeftSide $parValue}
-					"PAGE"            {set PageName $parValue; break}
-					default {SafeLog "Unknown parameter: $parName"}
-				}
+			if {$parName == "PAGE"} {
+				incr PageCount
 			}
 		}
-		if {$PageName > ""} {
-			SafeLog "Processing page: $PageName"
-			if {[catch {
-				SelectPMItem "SCHEMATIC1/$PageName"
-				OPage "SCHEMATIC1" $PageName
-				ui::SchematicActivate "/ - (SCHEMATIC1 : $PageName)"
-				DrawPage $fileId
-			} err]} {
-				SafeLog "Error processing page $PageName: $err"
-			}
-			incr PageNumber
+		# Reset to file beginning
+		seek $fileId 0
+
+		if {$PageCount > 0} {
+			SafeLog "Found $PageCount pages in CSV"
+			set PageCount [expr $PageCount + 1]
+			set PageNumber 2
 		} else {
-			break
+			SafeLog "Pages not found in: $filePath"
+			close $fileId
+			set Result false
 		}
 	}
-	close $fileId
-	
-	UnSelectAll
+	if {$Result} {
+		#SelectPMItem "SCHEMATIC1"
+		while {TRUE} {
+			set PageName ""
+			while {[gets $fileId line] >= 0} {
+				set elements [split $line ","]
+				set parName [lindex $elements 0]
+				set parValue [lindex $elements 1]
+				if {[string length $parValue ] > 0} {
+					switch -exact $parName {
+						"ProjectNumber"   {set ProjectNumber $parValue}
+						"NameRightSide"   {set NameRightSide $parValue}
+						"NameLeftSide"    {set NameLeftSide $parValue}
+						"PAGE"            {set PageName $parValue; break}
+						default {SafeLog "Unknown parameter: $parName"}
+					}
+				}
+			}
+			if {$PageName ne ""} {
+				SafeLog "Processing page: $PageName"
+				if {[catch {
+					SelectPMItem "SCHEMATIC1/$PageName"
+					OPage "SCHEMATIC1" $PageName
+					ui::SchematicActivate "/ - (SCHEMATIC1 : $PageName)"
+
+					if {[CheckPageA3Millimeters]} {
+						# SafeLog "ERROR: Page must be A3 with millimeter units"
+						PlacePage $fileId
+					}
+				} err]} {
+					SafeLog "Error processing page $PageName: $err"
+				}
+				incr PageNumber
+			} else {
+				break
+			}
+		}
+		if {$fileId ne ""} {
+			if {[catch {close $fileId} err]} {
+				SafeLog "Warning: Error closing file: $err"
+			}
+		}
+		UnSelectAll
+	}
+
 	SafeLog "Script done!"
 }
 
@@ -1073,26 +1145,22 @@ if {[info exists ::path_to_csv_file]} {
 	# Construct the full path to the library
 	set tclLibName [file join $scriptDir $libFileName]
 	# Check if the library file exists
-	if {![file exists $tclLibName]} {
-		# Library not found, display an error message
-		SafeLog "ERROR: Library file not found at: $tclLibName"
-		if {[info exists scriptDir]} {unset scriptDir}
-		if {[info exists libFileName]} {unset libFileName}
-		if {[info exists tclLibName]} {unset tclLibName}
-		return
+	if {[file exists $tclLibName]} {
+		PlaceCable $::path_to_csv_file
+	} else {
+		SafeLog "Error: Library file not found at: $tclLibName"
 	}
-	drawCable $::path_to_csv_file
 } else {
-	SafeLog "ERROR: Global variables path_to_csv_file not set!"
+	SafeLog "Error: Global variables path_to_csv_file not set!"
 }
 # Delete global vars
 set safeVars {STEP_XY A3_WIDTH A3_HEIGHT StepWireY 
-				StartWireY StartWireX EndWireX LeftOffPageX RightOffPageX 
-				StartTextPinX offsetNameLeftOffPageX StartMiddleTextColorX 
-				SpliceLeftX ShieldLeftX LeftPartX StartLeftTextColorX 
-				SpliceRightX ShieldRightX RightPartX StartRightTextColorX 
-				tclLibName pathLib ProjectNumber NameRightSide NameLeftSide 
-				PageCount PageNumber}
+              StartWireY StartWireX EndWireX LeftOffPageX RightOffPageX 
+              StartTextPinX offsetNameLeftOffPageX StartMiddleTextColorX 
+              SpliceLeftX ShieldLeftX LeftPartX StartLeftTextColorX 
+              SpliceRightX ShieldRightX RightPartX StartRightTextColorX 
+              tclLibName pathLib ProjectNumber NameRightSide NameLeftSide 
+              PageCount PageNumber scriptDir libFileName}
 
 foreach var $safeVars {
 	if {[info exists $var]} {
