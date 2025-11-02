@@ -1,6 +1,6 @@
 
 set start_time [clock seconds]
-set ::path_to_csv_file "D:/py/Git_OrCAD/data/W203.csv"
+set ::path_to_csv_file "D:/py/Git_OrCAD/data/cable.csv"
 if {[catch {source "D:/py/Git_OrCAD/scripts/cable.tcl"} err]} {
     puts $err
 } else {
@@ -12,5 +12,4 @@ set safeVars {start_time end_time execution_time err}
 foreach var $safeVars {
     if {[info exists $var]} {unset $var}
 }
-if {[info exists ::path_to_csv_file]} {unset ::path_to_csv_file}
 if {[info exists ::path_to_csv_file]} {unset ::path_to_csv_file}

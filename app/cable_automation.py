@@ -1,4 +1,4 @@
-# RIGa&DeepSeek 26.10.2025
+# RIGa&DeepSeek 02.11.2025
 # pip install pyautogui pywin32 openpyxl
 import tkinter as tk
 from tkinter import ttk
@@ -19,7 +19,7 @@ except ImportError as e:
 class MainApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("OrCAD Capture Cable Automation Tool, RIGa&DeepSeek 26.10.2025")
+        self.root.title("OrCAD Capture Cable Automation Tool, RIGa&DeepSeek 02.11.2025")
         self.root.geometry("800x600")
 
         # Global flag for non-English layout
@@ -52,10 +52,10 @@ class MainApp:
                 raise
 
             # Add tabs to notebook
-            self.notebook.add(self.cable_automation_tab.frame, text="Cable Automation")
-            self.notebook.add(self.find_and_replace_tab.frame, text="Find & replace text")
-            self.notebook.add(self.offpage_tab.frame, text="Connectors")
-            self.notebook.add(self.copy_text_tab.frame, text="Copy Text")
+            self.notebook.add(self.cable_automation_tab.frame, text=" Cable Automation ")
+            self.notebook.add(self.find_and_replace_tab.frame, text=" Find & replace text ")
+            self.notebook.add(self.offpage_tab.frame, text=" Connectors ")
+            self.notebook.add(self.copy_text_tab.frame, text=" Copy Text ")
         else:
             # Show warning message in the notebook area
             warning_frame = tk.Frame(self.notebook)

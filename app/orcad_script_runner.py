@@ -46,10 +46,8 @@ class OrcadScriptRunner:
                     # Monitor log file for completion (only check new log entries)
                     result = self._monitor_log_file(log_file, log_mtime_before)
 
-                    if result['success']:
-                        self.message_logger.log_message('SUCCESS', f"Text replacement completed successfully")
-                    else:
-                        self.message_logger.log_message('ERROR', f"Text replacement failed or timed out")
+                    if not result['success']:
+                        self.message_logger.log_message('ERROR', f"Script failed or timed out")
 
                     if callback:
                         callback(result)
@@ -99,8 +97,6 @@ foreach var $safeVars {{
 }}
 {var_cleanup}
 """
-        for var_name, var_value in glob_var:
-            script_content += f'if {{[info exists {var_name}]}} {{unset {var_name}}}\n'
 
         with open(script_file, 'w', encoding='utf-8') as f:
             f.write(script_content)

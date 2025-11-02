@@ -270,7 +270,8 @@ class CableAutomationTab:
                 return
 
             # Convert Excel to CSV in data directory
-            csv_filename = os.path.splitext(os.path.basename(xlsx_path))[0] + '.csv'
+            # csv_filename = os.path.splitext(os.path.basename(xlsx_path))[0] + '.csv'
+            csv_filename = 'cable.csv'
             csv_path = os.path.join(self.get_data_dir(), csv_filename)
 
             data = []
