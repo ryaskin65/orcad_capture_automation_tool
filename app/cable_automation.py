@@ -1,4 +1,4 @@
-# RIGa&DeepSeek 02.11.2025
+# RIGa&DeepSeek 05.11.2025
 # pip install pyautogui pywin32 openpyxl
 import tkinter as tk
 from tkinter import ttk
@@ -9,6 +9,7 @@ try:
     from cable_automation_tab import CableAutomationTab
     from find_and_replace_tab import FindAndReplaceTab
     from offpage_tab import OffPageTab
+    from copy_xy_text_tab import CopyXYTextTab
     from copy_text_tab import CopyTextTab
     from screen_handler import ScreenHandler, english_layout_id
 except ImportError as e:
@@ -19,7 +20,7 @@ except ImportError as e:
 class MainApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("OrCAD Capture Cable Automation Tool, RIGa&DeepSeek 02.11.2025")
+        self.root.title("OrCAD Capture Cable Automation Tool, RIGa&DeepSeek 05.11.2025")
         self.root.geometry("800x600")
 
         # Global flag for non-English layout
@@ -46,6 +47,7 @@ class MainApp:
                 self.cable_automation_tab = CableAutomationTab(self.notebook, self.message_logger)
                 self.find_and_replace_tab = FindAndReplaceTab(self.notebook, self.message_logger)
                 self.offpage_tab = OffPageTab(self.notebook, self.message_logger)
+                self.copy_xy_text_tab = CopyXYTextTab(self.notebook, self.message_logger)
                 self.copy_text_tab = CopyTextTab(self.notebook, self.message_logger)
             except NameError as e:
                 self.message_logger.log_message('ERROR', f"Error initializing tabs: {e}")
@@ -55,6 +57,7 @@ class MainApp:
             self.notebook.add(self.cable_automation_tab.frame, text=" Cable Automation ")
             self.notebook.add(self.find_and_replace_tab.frame, text=" Find & replace text ")
             self.notebook.add(self.offpage_tab.frame, text=" Connectors ")
+            self.notebook.add(self.copy_xy_text_tab.frame, text=" Copy X, Y, Text ")
             self.notebook.add(self.copy_text_tab.frame, text=" Copy Text ")
         else:
             # Show warning message in the notebook area

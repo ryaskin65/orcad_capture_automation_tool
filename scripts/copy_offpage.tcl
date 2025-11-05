@@ -1,70 +1,66 @@
-# RIGa&Grok 02.11.2025
-# Script to copy coordinates and names of offPages to CSV file
+# RIGa&Grok 03.11.2025
+# Script to export off-page connector coordinates and names to CSV
+# Groups connectors by X (delta <= 50), sorts within group by Y
+# Output: X0,Y0,Name0,,X1,Y1,Name1,,... with empty columns between groups
 
 set DELTA_X 50
 
+# Compare two items: first by X, then by Y
 proc compareCoordinates {a b} {
-    # Compare by X coordinate (index 0), then by Y coordinate (index 1)
     set aX [lindex $a 0]
     set bX [lindex $b 0]
     
-    if {$aX < $bX} {
-        return -1
-    } elseif {$aX > $bX} {
-        return 1
-    }
+    if {$aX < $bX} { return -1 }
+    if {$aX > $bX} { return 1 }
     
-    # If X coordinates are equal, compare by Y
     set aY [lindex $a 1]
     set bY [lindex $b 1]
-    if {$aY < $bY} {
-        return -1
-    } elseif {$aY > $bY} {
-        return 1
-    }
-    
+    if {$aY < $bY} { return -1 }
+    if {$aY > $bY} { return 1 }
     return 0
 }
 
+# Compare two items by Y coordinate only
 proc compareByY {a b} {
-    # Compare by Y coordinate only
     set aY [lindex $a 1]
     set bY [lindex $b 1]
-    if {$aY < $bY} {
-        return -1
-    } elseif {$aY > $bY} {
-        return 1
-    }
+    if {$aY < $bY} { return -1 }
+    if {$aY > $bY} { return 1 }
     return 0
 }
 
+# Collect all off-page connectors from the given page
 proc collectOffPageData {lPage lStatus} {
     set offPageDataList []
-    set lOffPagesIter [$lPage NewOffPageConnectorsIter $lStatus $::IterDefs_ALL]
+    set lOffPagesIter NULL
     set lNullObj NULL
 
+    # Create iterator safely
+    if {[catch {
+        set lOffPagesIter [$lPage NewOffPageConnectorsIter $lStatus $::IterDefs_ALL]
+    } err]} {
+        SafeLog "ERROR: Failed to create OffPage iterator: $err"
+        return {}
+    }
+
+    # Iterate through all off-page connectors
     set lOffPage [$lOffPagesIter NextOffPageConnector $lStatus]
     while {$lOffPage != $lNullObj} {
-        # Get absolute coordinates
         set coords [getOffPageAbsoluteCoords $lOffPage $lStatus]
         set tX [lindex $coords 0]
         set tY [lindex $coords 1]
-        
-        # Get name
         set name [getOffPageName $lOffPage]
-        
-        # Store data
         lappend offPageDataList [list $tX $tY $name]
-        
         set lOffPage [$lOffPagesIter NextOffPageConnector $lStatus]
     }
     
-    delete_DboPageOffPageConnectorsIter $lOffPagesIter
+    # Always delete iterator to prevent memory leak
+    catch { delete_DboPageOffPageConnectorsIter $lOffPagesIter }
     return $offPageDataList
 }
 
+# Get absolute coordinates (location + bounding box offset)
 proc getOffPageAbsoluteCoords {lOffPage lStatus} {
-set lRect [$lOffPage GetBoundingBox]
     set lRect [$lOffPage GetBoundingBox]
     set lUpperLeft NULL
     set lLocation NULL
@@ -81,16 +77,17 @@ set lRect [$lOffPage GetBoundingBox]
         
         set result [list [expr {$X + $lrelX}] [expr {$Y + $lrelY}]]
     } err]} {
-        SafeLog "ERROR: Error getting rectangle coordinates: $err"
+        SafeLog "ERROR: Failed to get absolute coordinates: $err"
     }
 
+    # Clean up C++ objects even if error occurred
     catch { DboTclHelper_sDeleteCPoint $lUpperLeft }
     catch { DboTclHelper_sDeleteCPoint $lLocation }
     catch { DboTclHelper_sDeleteCRect $lRect }    
-
     return $result
 }
 
+# Get connector name as Tcl string
 proc getOffPageName {lOffPage} {
     set nameCStr [DboTclHelper_sMakeCString]
     set result ""
@@ -100,13 +97,14 @@ proc getOffPageName {lOffPage} {
         set result [DboTclHelper_sGetConstCharPtr $nameCStr]
     } err]} {
         SafeLog "ERROR in getOffPageName: $err"
-        set result ""
     }
     
     catch { DboTclHelper_sDeleteCString $nameCStr }
     return $result
 }
 
+# Group connectors by X coordinate (max difference = maxXDifference)
+# Each group is sorted by Y
 proc groupAndSortByXCoordinate {sortedData maxXDifference} {
     set groups {}
     set currentGroup {}
@@ -115,10 +113,10 @@ proc groupAndSortByXCoordinate {sortedData maxXDifference} {
     foreach item $sortedData {
         set currentX [lindex $item 0]
         
+        # Start new group if X difference exceeds threshold
         if {[llength $currentGroup] == 0 || ($currentX - $lastX) <= $maxXDifference} {
             lappend currentGroup $item
         } else {
-            # Sort current group by Y before adding
             set sortedGroup [lsort -command compareByY $currentGroup]
             lappend groups $sortedGroup
             set currentGroup [list $item]
@@ -126,7 +124,7 @@ proc groupAndSortByXCoordinate {sortedData maxXDifference} {
         set lastX $currentX
     }
     
-    # Add last group
+    # Add the final group
     if {[llength $currentGroup] > 0} {
         set sortedGroup [lsort -command compareByY $currentGroup]
         lappend groups $sortedGroup
@@ -136,31 +134,32 @@ proc groupAndSortByXCoordinate {sortedData maxXDifference} {
     return $groups
 }
 
+# Export grouped data to CSV with empty columns between groups
 proc exportToCsv {csvFile groups} {
-    if {[catch {
-        set outFile [open $csvFile w]
-    } err]} {
-        SafeLog "ERROR: Cannot open csv file for writing: $csvFile - $err"
+    # Open file safely
+    if {[catch { set outFile [open $csvFile w] } err]} {
+        SafeLog "ERROR: Cannot open CSV file for writing: $csvFile - $err"
         return
     }
     
-    # Write header: X0,Y0,Name0,,X1,Y1,Name1,,...
+    # Build header: X0,Y0,Name0,,X1,Y1,Name1,,...
     set header ""
     for {set i 0} {$i < [llength $groups]} {incr i} {
         append header "X$i,Y$i,Name$i,,"
     }
+    
+    # Find maximum number of rows in any group
     set maxItems 0
+    foreach group $groups {
+        if {[llength $group] > $maxItems} {
+            set maxItems [llength $group]
+        }
+    }
+    
+    # Write CSV safely
     if {[catch {
         puts $outFile [string trimright $header ","]
         
-        # Find max rows in any group
-        foreach group $groups {
-            if {[llength $group] > $maxItems} {
-                set maxItems [llength $group]
-            }
-        }
-        
-        # Write data rows
         for {set rowIndex 0} {$rowIndex < $maxItems} {incr rowIndex} {
             set row ""
             foreach group $groups {
@@ -168,81 +167,78 @@ proc exportToCsv {csvFile groups} {
                     set item [lindex $group $rowIndex]
                     append row "[lindex $item 0],[lindex $item 1],[lindex $item 2],,"
                 } else {
-                    append row ",,,,"  ;# X,Y,Name + separator
+                    append row ",,,,"  ;# Empty X,Y,Name + separator
                 }
             }
             puts $outFile [string trimright $row ","]
         }
-        
         close $outFile
     } err]} {
-        SafeLog "ERROR during CSV export: $err"
+        SafeLog "ERROR during CSV write: $err"
         catch { close $outFile }
-        return
-    }        
-    SafeLog "CSV exported: [llength $groups] groups, max $maxItems rows"
+    } else {
+        SafeLog "CSV exported: [llength $groups] groups, max $maxItems rows"
+    }
 }
 
+# Safe logging with timestamp and file output
 proc SafeLog {message} {
-	global scriptDir
-	set timestamp [clock format [clock seconds] -format "%Y.%m.%d %H:%M:%S"]
-	set logEntry "$timestamp - $message"
-	puts $message
-	catch {
-		set logPath [file join $scriptDir "script_safe.log"]
-		if {$message == "Script started"} {
-			set fileId [open $logPath "w"]
-		} else {
-			set fileId [open $logPath "a"]
-		}
-		puts $fileId $logEntry
-		close $fileId
-	}
+    global scriptDir
+    if {![info exists scriptDir]} {
+        set scriptDir [pwd]
+    }
+    set timestamp [clock format [clock seconds] -format "%Y.%m.%d %H:%M:%S"]
+    set logEntry "$timestamp - $message"
+    puts $message
+    catch {
+        set logPath [file join $scriptDir "script_safe.log"]
+        if {$message == "Script started"} {
+            set fileId [open $logPath "w"]
+        } else {
+            set fileId [open $logPath "a"]
+        }
+        puts $fileId $logEntry
+        close $fileId
+    }
 }
 
+# Main export function
 proc exportActivePageOffPages {csvFile} {
     global DELTA_X
-	SafeLog "Script started"
+    SafeLog "Script started"
 
     set lSession $::DboSession_s_pDboSession
     DboSession -this $lSession
     set lStatus [DboState]
     set lNullObj NULL
-    set result true
     
+    # Get active page
     set lPage [GetActivePage]
     if {$lPage == $lNullObj} {
         SafeLog "ERROR: No active page found!"
-        set result false
+        return
     }
-    if {$result} {
-        SafeLog "Active page: $lPage"
-        # Collect all off-page connector data
-        set offPageDataList [collectOffPageData $lPage $lStatus]
-        
-        if {[llength $offPageDataList] == 0} {
-            SafeLog "No off-page connectors found on the active page"
-			set result false
-        }
-	}
-    if {$result} {
-        # Sort data by coordinates (X then Y)
-        set sortedData [lsort -command compareCoordinates $offPageDataList]
-        
-        # Group by X (DELTA_X) and sort each group by Y
-        set groupedData [groupAndSortByXCoordinate $sortedData $DELTA_X]
-        
-        # Export to CSV
-        exportToCsv $csvFile $groupedData
-        SafeLog "Export completed. [llength $offPageDataList] connectors saved in $csvFile"
-	    SafeLog "Script done!"
+    
+    # Collect data
+    set offPageDataList [collectOffPageData $lPage $lStatus]
+    if {[llength $offPageDataList] == 0} {
+        SafeLog "No off-page connectors found on the active page"
+        return
     }
+    
+    # Sort, group, export
+    set sortedData [lsort -command compareCoordinates $offPageDataList]
+    set groupedData [groupAndSortByXCoordinate $sortedData $DELTA_X]
+    exportToCsv $csvFile $groupedData
+    
+    SafeLog "Export completed: [llength $offPageDataList] connectors → $csvFile"
+    SafeLog "Script done!"
 }
 
+# Entry point
 if {[info exists ::path_to_csv_file]} {
-	# Get the directory where the script is located
-	set scriptDir [file dirname [info script]]
-	exportActivePageOffPages $::path_to_csv_file
+    set scriptDir [file dirname [info script]]
+    exportActivePageOffPages $::path_to_csv_file
 } else {
-	SafeLog "ERROR: Global variables path_to_csv_file not set!"
+    SafeLog "ERROR: Global variable ::path_to_csv_file not set"
 }
