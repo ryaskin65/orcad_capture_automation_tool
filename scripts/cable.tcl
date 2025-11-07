@@ -1,4 +1,4 @@
-# RIGa&DeepSeek 25.10.2025
+# RIGa&DeepSeek 07.11.2025
 # Script to cable automation from csv table
 
 # Global constant
@@ -29,14 +29,14 @@ set NameRightSide ""
 set NameLeftSide ""
 set PageCount 0
 set PageNumber 0
-
+                    
 # The procedure for checking that the active page is A3 size and the dimension is millimeters
 proc CheckPageA3Millimeters {} {
     set lPage [GetActivePage]
     set lNullObj NULL
     
     if {$lPage == $lNullObj} {
-        SafeLog "ERROR: No active page found"
+        SafeLog "Warning: No active page found"
         return false
     }
     
@@ -49,7 +49,7 @@ proc CheckPageA3Millimeters {} {
     
     # Checking units of measurement
     if {!$isMetric} {
-        SafeLog "ERROR: Page units are not metric"
+        SafeLog "Warning: Page units are not metric"
         return false
     }
     
@@ -70,6 +70,28 @@ proc CheckPageA3Millimeters {} {
     return true
 }
 
+# Check if there are any objects on page before running the script
+proc CheckObjectsOnPage {} {
+    set lPage [GetActivePage]
+    set lNullObj NULL
+    if {$lPage == $lNullObj} {
+        SafeLog "ERROR: No active page found"
+        return false
+    }
+    # Select all objects in the checking area
+	SelectBlock 0.00 0.00 420.00 260.00 FALSE
+    # Check if anything is selected
+    set selectedObjects [GetSelectedObjects]
+    set selectedCount [llength $selectedObjects]
+    # Clear selection
+    UnSelectAll
+    if {$selectedCount > 0} {
+        SafeLog "ERROR: Found $selectedCount objects on page"
+        return false
+    }
+    return true
+}
+
 # Places text on the schematic at specified coordinates
 #  X, Y - Starting coordinates
 #  L, W - Length and width of text area
@@ -82,7 +104,7 @@ proc PlaceTextCheck {X Y L W T S B} {
 	set lNullObj NULL
 	# Check boundaries
 	if {$X < 0 || $X > $A3_WIDTH || $Y < 0 || $Y > $A3_HEIGHT} {
-		SafeLog "Text boundary error: X=[format "%.2f" $X], Y=[format "%.2f" $Y], L=[format "%.2f" $L], W=[format "%.2f" $W]"
+		SafeLog "Text boundary ERROR: X=[format "%.2f" $X], Y=[format "%.2f" $Y], L=[format "%.2f" $L], W=[format "%.2f" $W]"
 		return
 	}		
 	PlaceText $X $Y [expr $X + $L] [expr $Y + $W] $T
@@ -108,24 +130,28 @@ proc PlaceTextCheck {X Y L W T S B} {
 
 #  Place rectangle with check coordinates
 proc PlaceRectangleCheck {X Y L W} {
-	SafeLog "Place rectangle: X=[format "%.2f" $X], Y=[format "%.2f" $Y], L=[format "%.2f" $L], W=[format "%.2f" $W]"
     global A3_WIDTH A3_HEIGHT
     # Checking input parameter types
     if {![string is double -strict $X] || ![string is double -strict $Y] || 
         ![string is double -strict $L] || ![string is double -strict $W]} {
-        SafeLog "Error: Non-numeric input in PlaceRectangle"
+        SafeLog "ERROR: Non-numeric input in PlaceRectangle X=$X, Y=$Y, L=$L, W=$W"
         return
     }
+    set X [format "%.2f" $X]
+    set Y [format "%.2f" $Y] 
+    set L [format "%.2f" $L]
+    set W [format "%.2f" $W]	
+	SafeLog "Place rectangle: X=$X, Y=$Y, L=$L, W=$W"
     # Checking positive dimensions
     if {$L <= 0 || $W <= 0} {
-        SafeLog "Error: Invalid dimensions L, W in PlaceRectangle"
+        SafeLog "ERROR: Invalid dimensions L, W in PlaceRectangle L=$L, W=$W"
         return
     }
-    set X2 [expr $X + $W]
-    set Y2 [expr $Y + $L]
+	set X2 [format "%.2f" [expr {$X + $W}]]
+	set Y2 [format "%.2f" [expr {$Y + $L}]]
     # Checking the borders of A3 sheet
     if {$X < 0 || $X2 > $A3_WIDTH || $Y < 0 || $Y2 > $A3_HEIGHT} {
-        SafeLog "Error: Rectangle out of size in PlaceRectangle: X=[format "%.2f" $X], Y=[format "%.2f" $Y], X2=[format "%.2f" $X2], Y2=[format "%.2f" $Y2]"
+        SafeLog "ERROR: Rectangle out of size in PlaceRectangle: X=$X, Y=$Y, X2=$X2, Y2=$Y2"
         return
     }
     PlaceRectangle $X $Y $X2 $Y2
@@ -137,18 +163,27 @@ proc PlaceRectangleCheck {X Y L W} {
 
 # Place wire with check coordinates
 proc PlaceWireCheck {X1 Y1 X2 Y2} {
-	SafeLog "Place wire: X1=[format "%.2f" $X1], Y1=[format "%.2f" $Y1], X2=[format "%.2f" $X2], Y2=[format "%.2f" $Y2]"
 	global A3_WIDTH A3_HEIGHT
+    # Check for zero-length wire
+    if {$X1 == $X2 && $Y1 == $Y2} {
+        SafeLog "Warning: Zero-length wire skipped at: X1=$X1, Y1=$Y1, X2=$X2, Y2=$Y2"
+        return
+    }
 	# Check if coordinates are numeric
 	if {![string is double -strict $X1] || ![string is double -strict $Y1] || 
 		![string is double -strict $X2] || ![string is double -strict $Y2]} {
-		SafeLog "Error: Non-numeric coordinates in PlaceWire"
+		SafeLog "Warning: Non-numeric coordinates in PlaceWire: X1=$X1, Y1=$Y1, X2=$X2, Y2=$Y2"
 	    return
 	}
+    set X1 [format "%.2f" $X1]
+    set Y1 [format "%.2f" $Y1] 
+    set X2 [format "%.2f" $X2]
+    set Y2 [format "%.2f" $Y2]	
+	SafeLog "Place wire: X1=$X1, Y1=$Y1, X2=$X2, Y2=$Y2"
 	# Check if coordinates are within A3 bounds
 	if {($X1 < 0) || ($X1 > $A3_WIDTH) || ($X2 < 0) || ($X2 > $A3_WIDTH) || 
 		($Y1 < 0) || ($Y1 > $A3_HEIGHT) || ($Y2 < 0) || ($Y2 > $A3_HEIGHT)} {
-		SafeLog "Error: Wire out of size in PlaceWire"
+		SafeLog "Warning: Wire out of size in PlaceWire: X1=$X1, Y1=$Y1, X2=$X2, Y2=$Y2"
 	    return
 	}
 	PlaceWire $X1 $Y1 $X2 $Y2
@@ -156,18 +191,22 @@ proc PlaceWireCheck {X1 Y1 X2 Y2} {
 
 # Place line with check coordinates
 proc PlaceLineSieldCheck {X1 Y1 X2 Y2} {
-	SafeLog "Place line: X1=[format "%.2f" $X1], Y1=[format "%.2f" $Y1], X2=[format "%.2f" $X2], Y2=[format "%.2f" $Y2]"
 	global A3_WIDTH A3_HEIGHT
 	# Check if coordinates are numeric
 	if {![string is double -strict $X1] || ![string is double -strict $Y1] || 
 		![string is double -strict $X2] || ![string is double -strict $Y2]} {
-		SafeLog "Error: Non-numeric coordinates in PlaceLine"
+		SafeLog "Warning: Non-numeric coordinates in PlaceLine: X1=$X1, Y1=$Y1, X2=$X2, Y2=$Y2"
 	    return
 	}
+    set X1 [format "%.2f" $X1]
+    set Y1 [format "%.2f" $Y1] 
+    set X2 [format "%.2f" $X2]
+    set Y2 [format "%.2f" $Y2]	
+	SafeLog "Place line: X1=$X1, Y1=$Y1, X2=$X2, Y2=$Y2"
 	# Check if coordinates are within A3 bounds
 	if {($X1 < 0) || ($X1 > $A3_WIDTH) || ($X2 < 0) || ($X2 > $A3_WIDTH) || 
 		($Y1 < 0) || ($Y1 > $A3_HEIGHT) || ($Y2 < 0) || ($Y2 > $A3_HEIGHT)} {
-		SafeLog "Error: Wire out of size in PlaceLine"
+		SafeLog "Warning: Wire out of size in PlaceLine: X1=$X1, Y1=$Y1, X2=$X2, Y2=$Y2"
 	    return
 	}
 	PlaceLine $X1 $Y1 $X2 $Y2
@@ -176,30 +215,31 @@ proc PlaceLineSieldCheck {X1 Y1 X2 Y2} {
 
 # Place arc shield top with check coordinates
 proc PlaceArcShieldTopCheck {X Y} {
-	SafeLog "Place top shield arc: X=[format "%.2f" $X], Y=[format "%.2f" $Y]"
-	global A3_WIDTH A3_HEIGHT
-	global STEP_XY
+	global A3_WIDTH A3_HEIGHT STEP_XY
 	# Check if coordinates are numeric
 	if {![string is double -strict $X] || ![string is double -strict $Y]} {
-		SafeLog "Error: Non-numeric coordinates in PlaceArc"
+		SafeLog "Warning: Non-numeric coordinates in PlaceArc: X=$X, Y=$Y"
 	    return
 	}
+    set X [format "%.2f" $X]
+    set Y [format "%.2f" $Y] 
+	SafeLog "Place top shield arc: X=$X, Y=$Y"
 	# Check if coordinates are within A3 bounds
 	if {($X < 0) || ($X > $A3_WIDTH) || ($Y < 0) || ($Y > $A3_HEIGHT)} {
-		SafeLog "Error: Arc out of size in PlaceArc"
+		SafeLog "Warning: Arc out of size in PlaceArc: X=$X, Y=$Y"
 	    return
 	}
-	set X1 $X
-	set Y1 [expr $Y + $STEP_XY]
-	set X2 [expr $X1 + 4 * $STEP_XY]
-	set Y2 [expr $Y1 + 4 * $STEP_XY]
-	set X3 [expr $X1 + 4 * $STEP_XY]
-	set Y3 [expr $Y1 + 2 * $STEP_XY]
-	set X4 [expr $X1 + 0 * $STEP_XY]
-	set Y4 [expr $Y1 + 2 * $STEP_XY]
+	set X1 [format "%.2f" $X]
+	set Y1 [format "%.2f" [expr {$Y + $STEP_XY}]]
+	set X2 [format "%.2f" [expr {$X1 + 4 * $STEP_XY}]]
+	set Y2 [format "%.2f" [expr {$Y1 + 4 * $STEP_XY}]]
+	set X3 [format "%.2f" [expr {$X1 + 4 * $STEP_XY}]]
+	set Y3 [format "%.2f" [expr {$Y1 + 2 * $STEP_XY}]]
+	set X4 [format "%.2f" [expr {$X1 + 0 * $STEP_XY}]]
+	set Y4 [format "%.2f" [expr {$Y1 + 2 * $STEP_XY}]]
 	# Check if coordinates are within A3 bounds
 	if {($X2 > $A3_WIDTH) || ($Y1 > $A3_HEIGHT) || ($Y2 > $A3_HEIGHT)} {
-		SafeLog "Error: Arc out of size in PlaceArc"
+		SafeLog "ERROR: Arc out of size in PlaceArc: Y1=$Y1, X2=$X2, Y2=$Y2"
 	    return
 	}
 	PlaceArc $X1 $Y1 $X2 $Y2 $X3 $Y3 $X4 $Y4
@@ -208,30 +248,31 @@ proc PlaceArcShieldTopCheck {X Y} {
 
 # Place arc shield bottom with check coordinates
 proc PlaceArcShieldBottomCheck {X Y} {
-	SafeLog "Place bottom shield arc: X=[format "%.2f" $X], Y=[format "%.2f" $Y]"
-	global A3_WIDTH A3_HEIGHT
-	global STEP_XY
+	global A3_WIDTH A3_HEIGHT STEP_XY
 	# Check if coordinates are numeric
 	if {![string is double -strict $X] || ![string is double -strict $Y]} {
-		SafeLog "Error: Non-numeric coordinates in PlaceArc"
+		SafeLog "Warning: Non-numeric coordinates in PlaceArc"
 	    return
 	}
+    set X [format "%.2f" $X]
+    set Y [format "%.2f" $Y] 
+	SafeLog "Place bottom shield arc: X=$X, Y=$Y"
 	# Check if coordinates are within A3 bounds
 	if {($X < 0) || ($X > $A3_WIDTH) || ($Y < 0) || ($Y > $A3_HEIGHT)} {
-		SafeLog "Error: Arc out of size in PlaceArc"
+		SafeLog "Warning: Arc out of size in PlaceArc: X=$X, Y=$Y"
 	    return
 	}
-	set X1 $X
-	set Y1 [expr $Y - $STEP_XY]
-	set X2 [expr $X1 + 4 * $STEP_XY]
-	set Y2 [expr $Y1 + 4 * $STEP_XY]
-	set X3 [expr $X1 + 4 * $STEP_XY]
-	set Y3 [expr $Y1 + 2 * $STEP_XY]
-	set X4 [expr $X1 + 0 * $STEP_XY]
-	set Y4 [expr $Y1 + 2 * $STEP_XY]
+	set X1 [format "%.2f" $X]
+	set Y1 [format "%.2f" [expr {$Y - $STEP_XY}]]
+	set X2 [format "%.2f" [expr {$X1 + 4 * $STEP_XY}]]
+	set Y2 [format "%.2f" [expr {$Y1 + 4 * $STEP_XY}]]
+	set X3 [format "%.2f" [expr {$X1 + 4 * $STEP_XY}]]
+	set Y3 [format "%.2f" [expr {$Y1 + 2 * $STEP_XY}]]
+	set X4 [format "%.2f" [expr {$X1 + 0 * $STEP_XY}]]
+	set Y4 [format "%.2f" [expr {$Y1 + 2 * $STEP_XY}]]
 	# Check if coordinates are within A3 bounds
 	if {($X2 > $A3_WIDTH) || ($Y1 > $A3_HEIGHT) || ($Y2 > $A3_HEIGHT)} {
-		SafeLog "Error: Arc out of size in PlaceArc"
+		SafeLog "ERROR: Arc out of size in PlaceArc: Y1=$Y1, X2=$X2, Y2=$Y2"
 	    return
 	}
 	PlaceArc $X1 $Y1 $X2 $Y2 $X4 $Y4 $X3 $Y3
@@ -241,15 +282,15 @@ proc PlaceArcShieldBottomCheck {X Y} {
 # Place shield with check coordinates
 # L - length, C - wire connection LEFT RIGHT DOWN
 proc PlaceShieldCheck {X Y L C} {
-    SafeLog "Place shield: X=[format "%.2f" $X], Y=[format "%.2f" $Y], L=[format "%.2f" $L], C=$C"
 	# Checking input parameter types
     if {![string is double -strict $X] || ![string is double -strict $Y] || ![string is double -strict $L]} {
-	    SafeLog "Error: Non-numeric input in PlaceShield: X=$X, Y=$Y, L=$L"
+	    SafeLog "Warning: Non-numeric input in PlaceShield: X=$X, Y=$Y, L=$L"
 	    return
 	}
+    SafeLog "Place shield: X=[format "%.2f" $X], Y=[format "%.2f" $Y], L=[format "%.2f" $L], C=$C"
     # Checking positive dimensions
     if {$L <= 0} {
-        SafeLog "Error: Invalid dimension L in PlaceShield: L=$L"
+        SafeLog "Warning: Invalid dimension L in PlaceShield: L=$L"
         return
     }
 	global STEP_XY
@@ -370,11 +411,10 @@ proc PlaceSPLC {X Y} {
 		} else {
 
 			if {$ver > 16} {
-				PlacePart $X [expr $Y - $STEP_XY] $tclLibName "SPLC" "" FALSE
+				PlacePart $X [expr $Y - $STEP_XY/2] $tclLibName "SPLC" "" FALSE
 			} else {
 				PlacePart $X [expr $Y - $STEP_XY/2] $tclLibName "SPLC" "" FALSE
 			}
-			SafeLog [format "Non-numeric coordinates in PlaceSPLC X:%s Y:%s" $X $Y]
 		}
 	} else {
 		SafeLog [format "Non-numeric coordinates in PlaceSPLC X:%s Y:%s" $X $Y]
@@ -473,10 +513,10 @@ proc PlaceRectangleCheckConnectors {arrayCon arrayNameCon X} {
 		} else {
 			set I2 $arCon($i)
 			set L [expr ($I2 - $I1 + 1) * $StepWireY]
+			PlaceRectangleCheck $X $Y $L $W
 			# Checking if a rectangle needs to be place
+			# Place the text - connector name
 			if {$arNameCon($it) != ""} {
-				PlaceRectangleCheck $X $Y $L $W
-				# Place the text - connector name
 				set XT [expr $X + $STEP_XY * 2]
 				set YT [expr $Y - $STEP_XY * 2]
 				PlaceTextCheck $XT $YT $LT $WT $arNameCon($it) 19 TRUE
@@ -544,13 +584,18 @@ proc PlaceShieldChecks {arrayShield X sideLeftRight arrayCon} {
 }
 
 proc PlaceRightWireWithOffset {XDR YD Y Offset} {
+	global STEP_XY
 	if {[string is integer -strict $Offset]} {
-		global STEP_XY
+		set XDR [format "%.2f" $XDR]
+		set YD [format "%.2f" $YD] 
+		set Y [format "%.2f" $Y]
 		# Right wire with offset (up or down)
 		if {$Offset > 0} {
 			# !!!Top and right side!!!
 			# Vertical wire
-			PlaceWireCheck $XDR [expr $Y + $STEP_XY] $XDR [expr $YD - $STEP_XY]
+			if {$Y != $YD} {
+				PlaceWireCheck $XDR [expr $Y + $STEP_XY] $XDR [expr $YD - $STEP_XY]
+			}
 			# First slant - close Y
 			PlaceWireCheck [expr $XDR - $STEP_XY] $Y $XDR [expr $Y + $STEP_XY]
 			# Second slant - close YD
@@ -558,7 +603,9 @@ proc PlaceRightWireWithOffset {XDR YD Y Offset} {
 		} elseif {$Offset < 0} {
 			# !!!Bottom and right side!!!
 			# Vertical wire
-			PlaceWireCheck $XDR [expr $Y - $STEP_XY] $XDR [expr $YD + $STEP_XY]
+			if {$Y != $YD} {
+				PlaceWireCheck $XDR [expr $Y - $STEP_XY] $XDR [expr $YD + $STEP_XY]
+			}
 			# First slant - close Y
 			PlaceWireCheck [expr $XDR - $STEP_XY] $Y $XDR [expr $Y - $STEP_XY]
 			# Second slant - close YD
@@ -568,13 +615,18 @@ proc PlaceRightWireWithOffset {XDR YD Y Offset} {
 }
 
 proc PlaceLeftWireWithOffset {XDL YD Y Offset} {
+	global STEP_XY
 	if {[string is integer -strict $Offset]} {
-		global STEP_XY
+		set XDL [format "%.2f" $XDL]
+		set YD [format "%.2f" $YD] 
+		set Y [format "%.2f" $Y]
 		# Left wire with offset (up or down)
 		if {$Offset > 0} {
 			# !!!Top and left side!!!
 			# Vertical wire
-			PlaceWireCheck $XDL [expr $Y + $STEP_XY] $XDL [expr $YD - $STEP_XY]
+			if {$Y != $YD} {
+				PlaceWireCheck $XDL [expr $Y + $STEP_XY] $XDL [expr $YD - $STEP_XY]
+			}
 			# First slant - close Y
 			PlaceWireCheck [expr $XDL + $STEP_XY] $Y $XDL [expr $Y + $STEP_XY]
 			# Second slant - close YD
@@ -582,7 +634,9 @@ proc PlaceLeftWireWithOffset {XDL YD Y Offset} {
 		} elseif {$Offset < 0} {
 			# !!!Bottom and left side!!!
 			# Vertical wire
-			PlaceWireCheck $XDL [expr $Y - $STEP_XY] $XDL [expr $YD + $STEP_XY]
+			if {$Y != $YD} {
+				PlaceWireCheck $XDL [expr $Y - $STEP_XY] $XDL [expr $YD + $STEP_XY]
+			}
 			# First slant - close Y
 			PlaceWireCheck [expr $XDL + $STEP_XY] $Y $XDL [expr $Y - $STEP_XY]
 			# Second slant - close YD
@@ -594,23 +648,21 @@ proc PlaceLeftWireWithOffset {XDL YD Y Offset} {
 proc PlaceHorizontalWireWithSPLC {WOL WOR WGL WGR XSL XSR XDL XDR Y} {
 	global StartWireX EndWireX STEP_XY A3_WIDTH A3_HEIGHT
 	# Validate all coordinates
-	foreach coord [list $XSL $XSR $XDL $XDR $Y $StartWireX $EndWireX] {
+	foreach coord [list $XSL $XSR $XDL $XDR $Y] {
 		if {![string is double -strict $coord]} {
-			SafeLog "Error: Non-numeric coordinate in PlaceHorizontalWireWithSPLC: $coord"
+			SafeLog "ERROR: Non-numeric coordinate in PlaceHorizontalWireWithSPLC: $coord"
 			return
 		}
 	}
 	# Check boundaries
 	if {$Y < 0 || $Y > $A3_HEIGHT || $StartWireX < 0 || $EndWireX > $A3_WIDTH} {
-		SafeLog "Error: Coordinates out of bounds in PlaceHorizontalWireWithSPLC: Y=$Y, StartX=$StartWireX, EndX=$EndWireX"
+		SafeLog "ERROR: Coordinates out of bounds in PlaceHorizontalWireWithSPLC: Y=$Y, StartX=$StartWireX, EndX=$EndWireX"
 		return
 	}
 	# Horizontal wire with SPLC
 	if {($WOL == "") && ($WOR == "")} {
 	# Without SPLC
-		if {[catch {PlaceWire $StartWireX $Y $EndWireX $Y} err]} {
-			SafeLog "Error placing wire: $err"
-		}
+		PlaceWireCheck $StartWireX $Y $EndWireX $Y
 	} elseif {($WOR == 0) && ($WOL != 0)} {
 	# Right SPLC
 		PlaceSPLC $XSR $Y
@@ -648,8 +700,8 @@ proc PlaceHorizontalWireWithSPLC {WOL WOR WGL WGR XSL XSR XDL XDR Y} {
 	}
 }
 
-proc PlacePage {fileId} {
-	global STEP_XY
+proc PlacePage {pageData} {
+	global ver STEP_XY
 	global offsetNameLeftOffPageX SpliceRightX SpliceLeftX ShieldRightX ShieldLeftX
 	global StepWireY StartWireY StartWireX EndWireX LeftOffPageX RightOffPageX LeftPartX RightPartX
 	global StartTextPinX StartLeftTextColorX StartRightTextColorX StartMiddleTextColorX
@@ -658,7 +710,7 @@ proc PlacePage {fileId} {
 	#Page it is all rows after PAGE to empty row
 	set i 0
 	set maxLenLeftConName 0
-	while {[gets $fileId line] >= 0} {
+	foreach line $pageData {
 		set elements [split $line ","]
 		set vSignalName [lindex $elements 0]
 		if {$vSignalName == ""} {break}
@@ -742,22 +794,25 @@ proc PlacePage {fileId} {
 	set iRC 0
 	set arrayLineRightConnector($iRC) 0
 	set prevRightConnector ""
+
 	set iLT 0
-	if {($WireLeftOffset(1) == "") || ($WireLeftOffset(1) == 0)} {
+	# if {($WireLeftOffset(1) == "") || ($WireLeftOffset(1) == 0)} {
 		set leftConnector [GetConnectorName $LeftConnector(1)]
 		set prevLeftConnector $leftConnector
-	} else {
-		set leftConnector ""
-	}
+	# } else {
+	# 	set leftConnector ""
+	# }
 	set arrayNameLeftConnector($iLT) $leftConnector
+
 	set iRT 0
-	if {($WireRightOffset(1) == "") || ($WireRightOffset(1) == 0)} {
+	# if {($WireRightOffset(1) == "") || ($WireRightOffset(1) == 0)} {
 		set rightConnector [GetConnectorName $RightConnector(1)]
 		set prevRightConnector $rightConnector
-	} else {
-		set rightConnector ""
-	}
+	# } else {
+	# 	set rightConnector ""
+	# }
 	set arrayNameRightConnector($iRT) $rightConnector
+
 	for {set i 1} {$i < $numWires} {incr i} {
 		SafeLog "Wire: $i"
 		# Array humbers of Y for left and right connector box
@@ -850,49 +905,47 @@ proc PlacePage {fileId} {
 			PlaceInOffPageCheck $rightCon $leftCon $Y
 		}
 		# Place wire from pin of left connector to pin of right connector
-		if {$SignalName($i) != "SPACE"} {
-			set WGR [expr {$WireInRightGroupe($i) == "" ? 0 : $WireInRightGroupe($i)}]
-			set WGL [expr {$WireInLeftGroupe($i) == "" ? 0 : $WireInLeftGroupe($i)}]
-			set WOR [expr {$WireRightOffset($i) == "" ? 0 : $WireRightOffset($i)}]
-			set WOL [expr {$WireLeftOffset($i) == "" ? 0 : $WireLeftOffset($i)}]
-			set XDR [expr $SpliceRightX - $STEP_XY * 1 - $StepWireY * 3 * $WGR]
-			set XDL [expr $SpliceLeftX  + $STEP_XY * 3 + $StepWireY * 3 * $WGL]
-			set YDR [expr $Y + $WOR * $StepWireY]
-			set YDL [expr $Y + $WOL * $StepWireY]
-			set XSR [expr $SpliceRightX - $StepWireY * 3 * $WGR]
-			set XSL [expr $SpliceLeftX  + $StepWireY * 3 * $WGL]
-			# Horizontal wire with SPLC
-			PlaceHorizontalWireWithSPLC $WireLeftOffset($i) $WireRightOffset($i) $WGL $WGR $XSL $XSR $XDL $XDR $Y
-			# Place right offset wire
-			PlaceRightWireWithOffset $XDR $YDR $Y $WireRightOffset($i)
-			# Place left offset wire
-			PlaceLeftWireWithOffset $XDL $YDL $Y $WireLeftOffset($i)
-			# Left text - color
-			set XT $StartLeftTextColorX
-			set YT [expr $Y - $STEP_XY]
-			set LT [expr $STEP_XY * 10]
-			set WT $STEP_XY
-			if {$WidthLeftGauge($i) ne ""} {
-				set T "$Color($i) $WidthLeftGauge($i)#"
-			} else {
-				set T "$Color($i)"
-			}
-			PlaceTextCheck $XT $YT $LT $WT $T 9 TRUE
-			# Right text - color
-			set XT $StartRightTextColorX
-			if {$WidthRightGauge($i) ne ""} {
-				set T "$Color($i) $WidthRightGauge($i)#"
-			} elseif {$WidthLeftGauge($i) ne ""} {
-				set T "$Color($i) $WidthLeftGauge($i)#"
-			} else {
-				set T "$Color($i)"
-			}
-			PlaceTextCheck $XT $YT $LT $WT $T 9 TRUE
-			# Middle text - signal name
-			set XT $StartMiddleTextColorX
-			set LT [expr $STEP_XY * 20]
-			PlaceTextCheck $XT $YT $LT $WT $SignalName($i) 9 TRUE
+		set WGR [expr {$WireInRightGroupe($i) == "" ? 0 : $WireInRightGroupe($i)}]
+		set WGL [expr {$WireInLeftGroupe($i) == "" ? 0 : $WireInLeftGroupe($i)}]
+		set WOR [expr {$WireRightOffset($i) == "" ? 0 : $WireRightOffset($i)}]
+		set WOL [expr {$WireLeftOffset($i) == "" ? 0 : $WireLeftOffset($i)}]
+		set XDR [expr $SpliceRightX - $STEP_XY * 1 - $StepWireY * 3 * $WGR]
+		set XDL [expr $SpliceLeftX  + $STEP_XY * 3 + $StepWireY * 3 * $WGL]
+		set YDR [expr $Y + $WOR * $StepWireY]
+		set YDL [expr $Y + $WOL * $StepWireY]
+		set XSR [expr $SpliceRightX - $StepWireY * 3 * $WGR]
+		set XSL [expr $SpliceLeftX  + $StepWireY * 3 * $WGL]
+		# Horizontal wire with SPLC
+		PlaceHorizontalWireWithSPLC $WireLeftOffset($i) $WireRightOffset($i) $WGL $WGR $XSL $XSR $XDL $XDR $Y
+		# Place right offset wire
+		PlaceRightWireWithOffset $XDR $YDR $Y $WireRightOffset($i)
+		# Place left offset wire
+		PlaceLeftWireWithOffset $XDL $YDL $Y $WireLeftOffset($i)
+		# Left text - color
+		set XT $StartLeftTextColorX
+		set YT [expr $Y - $STEP_XY]
+		set LT [expr $STEP_XY * 10]
+		set WT $STEP_XY
+		if {$WidthLeftGauge($i) ne ""} {
+			set T "$Color($i) $WidthLeftGauge($i)#"
+		} else {
+			set T "$Color($i)"
 		}
+		PlaceTextCheck $XT $YT $LT $WT $T 9 TRUE
+		# Right text - color
+		set XT $StartRightTextColorX
+		if {$WidthRightGauge($i) ne ""} {
+			set T "$Color($i) $WidthRightGauge($i)#"
+		} elseif {$WidthLeftGauge($i) ne ""} {
+			set T "$Color($i) $WidthLeftGauge($i)#"
+		} else {
+			set T "$Color($i)"
+		}
+		PlaceTextCheck $XT $YT $LT $WT $T 9 TRUE
+		# Middle text - signal name
+		set XT $StartMiddleTextColorX
+		set LT [expr $STEP_XY * 20]
+		PlaceTextCheck $XT $YT $LT $WT $SignalName($i) 9 TRUE
 		# Twisted wire
 		if {($typePair == 1) && ($numWireTwist == 0)} {
 			if {$WireType($i) == 1} {
@@ -1024,6 +1077,7 @@ proc SafeLog {message} {
 
 # Main procedure with global error handling
 proc PlaceCable {filePath} {
+	global ver
 	SafeLog "Script started"
 	global tclLibName pathLib
 	global ProjectNumber NameRightSide NameLeftSide PageCount PageNumber
@@ -1058,12 +1112,12 @@ proc PlaceCable {filePath} {
 
 	# get from file csv pins of connectors
 	if {![file exists $filePath]} {
-		SafeLog "Error: File does not exist: $filePath"
+		SafeLog "ERROR: File does not exist: $filePath"
 		set Result false
 	}
 	if {$Result} {
 		if {[catch {open $filePath "r"} fileId]} {
-			SafeLog "Error: Cannot open file: $filePath"
+			SafeLog "ERROR: Cannot open file: $filePath"
 			set Result false
 		}
 	}
@@ -1093,30 +1147,46 @@ proc PlaceCable {filePath} {
 		#SelectPMItem "SCHEMATIC1"
 		while {TRUE} {
 			set PageName ""
+			set pageData [list]
+			# Read header parameters
 			while {[gets $fileId line] >= 0} {
 				set elements [split $line ","]
 				set parName [lindex $elements 0]
-				set parValue [lindex $elements 1]
-				if {[string length $parValue ] > 0} {
+				# Process header parameters
+				if {[llength $elements] >= 2} {
+					set parValue [lindex $elements 1]
 					switch -exact $parName {
 						"ProjectNumber"   {set ProjectNumber $parValue}
 						"NameRightSide"   {set NameRightSide $parValue}
 						"NameLeftSide"    {set NameLeftSide $parValue}
 						"PAGE"            {set PageName $parValue; break}
-						default {SafeLog "Unknown parameter: $parName"}
 					}
 				}
 			}
-			if {$PageName ne ""} {
-				SafeLog "Processing page: $PageName"
+			# If we found wire data, continue reading the rest of the page
+			while {[gets $fileId line] >= 0} {
+				set elements [split $line ","]
+				set firstElement [lindex $elements 0]
+				# Stop at empty line or next PAGE marker
+				if {$firstElement == "" || $firstElement == "PAGE"} {
+					# If it's a new PAGE, seek back to start of this line
+					seek $fileId -[string length $line] current
+					break
+				}
+				# Add wire data to our buffer
+				lappend pageData $line
+			}
+			if {$PageName ne "" && [llength $pageData] > 0} {
+				SafeLog "Processing page: $PageName with [llength $pageData] wire entries"
 				if {[catch {
 					SelectPMItem "SCHEMATIC1/$PageName"
 					OPage "SCHEMATIC1" $PageName
 					ui::SchematicActivate "/ - (SCHEMATIC1 : $PageName)"
-
-					if {[CheckPageA3Millimeters]} {
-						# SafeLog "ERROR: Page must be A3 with millimeter units"
-						PlacePage $fileId
+					if {[CheckPageA3Millimeters] && [CheckObjectsOnPage]} {
+						# Process the placed page data
+						PlacePage $pageData
+					} else {
+						SafeLog "Skipping page $PageName due to page format or existing objects"
 					}
 				} err]} {
 					SafeLog "Error processing page $PageName: $err"
@@ -1148,10 +1218,10 @@ if {[info exists ::path_to_csv_file]} {
 	if {[file exists $tclLibName]} {
 		PlaceCable $::path_to_csv_file
 	} else {
-		SafeLog "Error: Library file not found at: $tclLibName"
+		SafeLog "ERROR: Library file not found at: $tclLibName"
 	}
 } else {
-	SafeLog "Error: Global variables path_to_csv_file not set!"
+	SafeLog "ERROR: Global variables path_to_csv_file not set!"
 }
 # Delete global vars
 set safeVars {STEP_XY A3_WIDTH A3_HEIGHT StepWireY 

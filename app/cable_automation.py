@@ -1,4 +1,4 @@
-# RIGa&DeepSeek 05.11.2025
+# RIGa&DeepSeek 07.11.2025
 # pip install pyautogui pywin32 openpyxl
 import tkinter as tk
 from tkinter import ttk
@@ -20,7 +20,7 @@ except ImportError as e:
 class MainApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("OrCAD Capture Cable Automation Tool, RIGa&DeepSeek 05.11.2025")
+        self.root.title("OrCAD Capture Cable Automation Tool, RIGa&DeepSeek 07.11.2025")
         self.root.geometry("800x600")
 
         # Global flag for non-English layout

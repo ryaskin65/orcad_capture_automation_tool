@@ -1,11 +1,12 @@
-# RIGa&DeepSeek 26.10.2025
+# RIGa&DeepSeek 07.11.2025
 import tkinter as tk
-from tkinter import ttk, filedialog
+from tkinter import ttk, filedialog, messagebox
 import os
 import sys
 from screen_handler import ScreenHandler
 from excel_utils import ExcelUtils
 from orcad_script_runner import OrcadScriptRunner
+from cable_validator import CableValidator
 
 script_name = 'cable.tcl'
 xlsx_path = ''
@@ -15,7 +16,8 @@ class CableAutomationTab:
         self.message_logger = message_logger
         self.excel_utils = ExcelUtils(message_logger)
         self.frame = ttk.Frame(notebook)
-
+        # Initialize validator
+        self.validator = CableValidator(message_logger)
         # Initialize handlers
         self.screen_handler = ScreenHandler(self.message_logger)
         self.script_runner = OrcadScriptRunner(
@@ -248,13 +250,112 @@ class CableAutomationTab:
         if not result['success']:
             self.message_logger.log_message('ERROR', f"Script execution failed: {result.get('error', 'Unknown error')}")
 
+    # def draw(self):
+    #     """Handle draw action with page selection"""
+    #     if self.script_runner.is_executing:
+    #         self.message_logger.log_message('WARNING', "Script is already running")
+    #         return
+    #
+    #     try:
+    #         if not self.tree.get_children():
+    #             self.load_from_excel()
+    #             if not self.tree.get_children():
+    #                 self.message_logger.log_message('ERROR', "No data to draw")
+    #                 return
+    #
+    #         if not xlsx_path:
+    #             self.message_logger.log_message('ERROR', "Excel path not configured")
+    #             return
+    #
+    #         if not os.path.exists(xlsx_path):
+    #             self.message_logger.log_message('ERROR', "Excel file does not exist")
+    #             return
+    #
+    #         # Convert Excel to CSV in data directory
+    #         # csv_filename = os.path.splitext(os.path.basename(xlsx_path))[0] + '.csv'
+    #         csv_filename = 'cable.csv'
+    #         csv_path = os.path.join(self.get_data_dir(), csv_filename)
+    #
+    #         data = []
+    #         for item in self.tree.get_children():
+    #             row = list(self.tree.item(item, 'values'))
+    #             data.append(row)
+    #
+    #         self.excel_utils.save_list_to_csv(
+    #             data=data,
+    #             csv_path=csv_path
+    #         )
+    #
+    #         glob_var = [["::path_to_csv_file", csv_path.replace('\\', '/')]]
+    #
+    #         # Execute the script
+    #         success = self.script_runner.execute_script(script_name, glob_var, self._on_execution_complete)
+    #
+    #         if success:
+    #             self.draw_button.config(state='disabled', text='Running...')
+    #
+    #     except Exception as e:
+    #         self.message_logger.log_message('ERROR', f"Error during drawing: {str(e)}")
+    #         self.draw_button.config(state='normal', text='Run script')
+
+    def validate_before_draw(self):
+        """Validate cable data before running the script"""
+        try:
+            # Get all data from treeview
+            data = []
+            for item in self.tree.get_children():
+                row = list(self.tree.item(item, 'values'))
+                data.append(row)
+
+            # Validate the data
+            is_valid, errors, warnings = self.validator.validate_cable_data(data)
+
+            # Log validation results
+            if errors:
+                for error in errors:
+                    self.message_logger.log_message('ERROR', f"Validation: {error}")
+
+            if warnings:
+                for warning in warnings:
+                    self.message_logger.log_message('WARNING', f"Validation: {warning}")
+
+            # Show summary dialog
+            summary = self.validator.get_validation_summary()
+            if not is_valid:
+                # Show errors in message box
+                messagebox.showerror(
+                    "Validation Failed",
+                    f"Cable data validation failed:\n\n{summary}\n\nPlease fix errors before running the script."
+                )
+                return False
+            else:
+                if warnings:
+                    # Show warnings but allow continuation
+                    result = messagebox.askyesno(
+                        "Validation Warnings",
+                        f"Validation completed with warnings:\n\n{summary}\n\nDo you want to continue?"
+                    )
+                    return result
+                else:
+                    self.message_logger.log_message('SUCCESS', "Cable data validation passed")
+                    return True
+
+        except Exception as e:
+            self.message_logger.log_message('ERROR', f"Validation error: {str(e)}")
+            return False
+
     def draw(self):
-        """Handle draw action with page selection"""
+        """Handle draw action with validation"""
         if self.script_runner.is_executing:
             self.message_logger.log_message('WARNING', "Script is already running")
             return
 
         try:
+            # Validate before drawing
+            if not self.validate_before_draw():
+                return
+
+            # Continue with original draw logic if validation passed
             if not self.tree.get_children():
                 self.load_from_excel()
                 if not self.tree.get_children():
@@ -270,7 +371,6 @@ class CableAutomationTab:
                 return
 
             # Convert Excel to CSV in data directory
-            # csv_filename = os.path.splitext(os.path.basename(xlsx_path))[0] + '.csv'
             csv_filename = 'cable.csv'
             csv_path = os.path.join(self.get_data_dir(), csv_filename)
 

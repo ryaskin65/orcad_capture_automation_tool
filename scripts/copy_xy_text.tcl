@@ -1,4 +1,4 @@
-# RIGa&DeepSeek 03.11.2025
+# RIGa&DeepSeek 06.11.2025
 # Enhanced text extraction script for OrCAD Capture
 # Saves text with coordinates from selected objects to CSV
 # Groups by X coordinate (delta <= 50), sorts within group by Y

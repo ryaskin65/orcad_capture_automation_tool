@@ -1,7 +1,7 @@
 
 set start_time [clock seconds]
-set ::path_to_csv_file "D:/py/Git_OrCAD/data/selected_text.csv"
-if {[catch {source "D:/py/Git_OrCAD/scripts/copy_xy_text.tcl"} err]} {
+set ::path_to_csv_file "D:/py/Git_OrCAD/data/cable.csv"
+if {[catch {source "D:/py/Git_OrCAD/scripts/cable.tcl"} err]} {
     puts $err
 } else {
     set end_time [clock seconds]
