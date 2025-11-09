@@ -1,5 +1,4 @@
 # RIGa&DeepSeek 05.11.2025
-import tkinter as tk
 from tkinter import ttk
 import os
 import sys
@@ -7,8 +6,8 @@ from screen_handler import ScreenHandler
 from excel_utils import ExcelUtils
 from orcad_script_runner import OrcadScriptRunner
 
-script_copy_text = 'copy_xy_text.tcl'
-file_csv = 'selected_text.csv'
+script_copy_text = "copy_xy_text.tcl"
+file_csv = "selected_text.csv"
 
 
 class CopyXYTextTab:
@@ -21,9 +20,7 @@ class CopyXYTextTab:
         # Initialize ScreenHandler and ScriptRunner
         self.screen_handler = ScreenHandler(self.message_logger)
         self.script_runner = OrcadScriptRunner(
-            self.screen_handler,
-            self.message_logger,
-            self.get_scripts_dir()
+            self.screen_handler, self.message_logger, self.get_scripts_dir()
         )
 
         # Grid configuration
@@ -36,7 +33,9 @@ class CopyXYTextTab:
         self.tree.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
 
         # Scrollbar
-        tree_scroll = ttk.Scrollbar(self.frame, orient="vertical", command=self.tree.yview)
+        tree_scroll = ttk.Scrollbar(
+            self.frame, orient="vertical", command=self.tree.yview
+        )
         tree_scroll.grid(row=0, column=0, sticky="nse", padx=(0, 5), pady=5)
         self.tree.configure(yscrollcommand=tree_scroll.set)
 
@@ -44,26 +43,29 @@ class CopyXYTextTab:
         button_frame = ttk.Frame(self.frame)
         button_frame.grid(row=0, column=1, padx=5, pady=5, sticky="nsew")
 
-        self.edit_excel_btn = ttk.Button(button_frame, text="Edit in Excel",
-                                         command=self.edit_in_excel)
-        self.edit_excel_btn.pack(anchor="e", pady=(20, 5), fill='x')
+        self.edit_excel_btn = ttk.Button(
+            button_frame, text="Edit in Excel", command=self.edit_in_excel
+        )
+        self.edit_excel_btn.pack(anchor="e", pady=(20, 5), fill="x")
 
-        self.load_excel_btn = ttk.Button(button_frame, text="Load from csv",
-                                         command=self.load_from_excel)
-        self.load_excel_btn.pack(anchor="e", pady=(20, 5), fill='x')
+        self.load_excel_btn = ttk.Button(
+            button_frame, text="Load from csv", command=self.load_from_excel
+        )
+        self.load_excel_btn.pack(anchor="e", pady=(20, 5), fill="x")
 
-        self.copy_btn = ttk.Button(button_frame, text="Copy selected text",
-                                   command=self.copy_text)
-        self.copy_btn.pack(anchor="e", pady=(20, 5), fill='x')
+        self.copy_btn = ttk.Button(
+            button_frame, text="Copy selected text", command=self.copy_text
+        )
+        self.copy_btn.pack(anchor="e", pady=(20, 5), fill="x")
 
     def get_scripts_dir(self):
         """Get path to scripts directory"""
-        if getattr(sys, 'frozen', False):
+        if getattr(sys, "frozen", False):
             app_dir = os.path.dirname(sys.executable)
         else:
             app_dir = os.path.dirname(os.path.abspath(__file__))
 
-        if getattr(sys, 'frozen', False):
+        if getattr(sys, "frozen", False):
             scripts_dir = os.path.join(app_dir, "scripts")
         else:
             scripts_dir = os.path.join(os.path.dirname(app_dir), "scripts")
@@ -76,28 +78,36 @@ class CopyXYTextTab:
         script_path = os.path.join(scripts_dir, script_name)
 
         if not os.path.exists(script_path):
-            self.message_logger.log_message('ERROR', f'Script file "{script_path}" not found!')
+            self.message_logger.log_message(
+                "ERROR", f'Script file "{script_path}" not found!'
+            )
             return
 
         csv_dir = os.path.join(os.path.dirname(scripts_dir), "data")
         csv_path = os.path.join(csv_dir, file_csv)
-        glob_var = [["::path_to_csv_file", csv_path.replace('\\', '/')]]
+        glob_var = [["::path_to_csv_file", csv_path.replace("\\", "/")]]
 
         def execution_callback(result):
-            button.config(state='normal')
-            if result['success']:
-                self.message_logger.log_message('SUCCESS', f"Script {script_name} executed successfully")
+            button.config(state="normal")
+            if result["success"]:
+                self.message_logger.log_message(
+                    "SUCCESS", f"Script {script_name} executed successfully"
+                )
                 if auto_load:
                     self.load_from_excel()
             else:
-                self.message_logger.log_message('ERROR',
-                    f"Script execution failed: {result.get('error', 'Unknown error')}")
+                self.message_logger.log_message(
+                    "ERROR",
+                    f"Script execution failed: {result.get('error', 'Unknown error')}",
+                )
 
-        button.config(state='disabled')
-        success = self.script_runner.execute_script(script_name, glob_var, execution_callback)
+        button.config(state="disabled")
+        success = self.script_runner.execute_script(
+            script_name, glob_var, execution_callback
+        )
 
         if not success:
-            button.config(state='normal')
+            button.config(state="normal")
 
     def copy_text(self):
         """Copy selected text in OrCAD and save to CSV"""
@@ -113,28 +123,34 @@ class CopyXYTextTab:
             # Create directory and empty file if not exists
             if not os.path.exists(csv_path):
                 os.makedirs(csv_dir, exist_ok=True)
-                with open(csv_path, 'w', encoding='utf-8') as f:
+                with open(csv_path, "w", encoding="utf-8") as f:
                     f.write("")
-                self.message_logger.log_message('SUCCESS', f"Created new CSV file: {csv_path}")
+                self.message_logger.log_message(
+                    "SUCCESS", f"Created new CSV file: {csv_path}"
+                )
 
             # Check if file is locked
             if self._is_file_locked(csv_path):
-                self.message_logger.log_message('ERROR', f"File is already open in Excel: {csv_path}")
+                self.message_logger.log_message(
+                    "ERROR", f"File is already open in Excel: {csv_path}"
+                )
                 return
 
             # Open in Excel
             os.startfile(csv_path)
-            self.message_logger.log_message('SUCCESS', f"Opened CSV in Excel: {csv_path}")
+            self.message_logger.log_message(
+                "SUCCESS", f"Opened CSV in Excel: {csv_path}"
+            )
 
         except Exception as e:
-            self.message_logger.log_message('ERROR', f"Failed to open file: {str(e)}")
+            self.message_logger.log_message("ERROR", f"Failed to open file: {str(e)}")
 
     def _is_file_locked(self, filepath):
         """Check if file is locked by trying to open in append mode"""
         if not os.path.exists(filepath):
             return False
         try:
-            with open(filepath, 'a', encoding='utf-8'):
+            with open(filepath, "a", encoding="utf-8"):
                 pass
             return False
         except IOError:
@@ -147,15 +163,16 @@ class CopyXYTextTab:
         csv_path = os.path.join(csv_dir, file_csv)
 
         if not os.path.exists(csv_path):
-            self.message_logger.log_message('ERROR', "CSV file does not exist")
+            self.message_logger.log_message("ERROR", "CSV file does not exist")
             return
 
         success = self.excel_utils.load_csv_to_treeview(
-            csv_path=csv_path,
-            tree=self.tree
+            csv_path=csv_path, tree=self.tree
         )
 
         if success:
-            self.message_logger.log_message('SUCCESS', f"Loaded data from {csv_path}")
+            self.message_logger.log_message("SUCCESS", f"Loaded data from {csv_path}")
         else:
-            self.message_logger.log_message('ERROR', f"Failed to load data from {csv_path}")
+            self.message_logger.log_message(
+                "ERROR", f"Failed to load data from {csv_path}"
+            )

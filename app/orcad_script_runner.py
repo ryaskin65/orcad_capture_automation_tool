@@ -5,6 +5,7 @@ import threading
 
 CHANGE_LOG_TIMEOUT = 4
 
+
 class OrcadScriptRunner:
     """Handles OrCAD script execution and monitoring with log file analysis only"""
 
@@ -19,7 +20,7 @@ class OrcadScriptRunner:
         Execute run script in OrCAD with log file monitoring
         """
         if self.is_executing:
-            self.message_logger.log_message('WARNING', "Script is already running")
+            self.message_logger.log_message("WARNING", "Script is already running")
             return False
 
         try:
@@ -35,27 +36,35 @@ class OrcadScriptRunner:
             def execute_and_monitor():
                 try:
                     # Execute the script and check if OrCAD window was found
-                    orcad_found = self.screen_handler.execute_in_orcad(script_file, self.message_logger)
+                    orcad_found = self.screen_handler.execute_in_orcad(
+                        script_file, self.message_logger
+                    )
 
                     if not orcad_found:
                         # Error message already logged in screen_handler.execute_in_orcad
                         if callback:
-                            callback({'success': False, 'error': 'OrCAD window not found'})
+                            callback(
+                                {"success": False, "error": "OrCAD window not found"}
+                            )
                         return
 
                     # Monitor log file for completion (only check new log entries)
                     result = self._monitor_log_file(log_file, log_mtime_before)
 
-                    if not result['success']:
-                        self.message_logger.log_message('ERROR', f"Script failed or timed out")
+                    if not result["success"]:
+                        self.message_logger.log_message(
+                            "ERROR", f"Script failed or timed out"
+                        )
 
                     if callback:
                         callback(result)
 
                 except Exception as e:
-                    self.message_logger.log_message('ERROR', f"Execution error: {str(e)}")
+                    self.message_logger.log_message(
+                        "ERROR", f"Execution error: {str(e)}"
+                    )
                     if callback:
-                        callback({'success': False, 'error': str(e)})
+                        callback({"success": False, "error": str(e)})
                 finally:
                     self.is_executing = False
 
@@ -67,20 +76,30 @@ class OrcadScriptRunner:
             return True
 
         except Exception as e:
-            self.message_logger.log_message('ERROR', f"Error preparing script: {str(e)}")
+            self.message_logger.log_message(
+                "ERROR", f"Error preparing script: {str(e)}"
+            )
             self.is_executing = False
             return False
 
     def _create_run_script(self, script_name, glob_var):
         """Create simple TCL script for run script"""
-        script_file = os.path.join(self.scripts_dir, 'run_script.tcl')
-        main_script_path = os.path.join(self.scripts_dir, script_name).replace('\\', '/')
+        script_file = os.path.join(self.scripts_dir, "run_script.tcl")
+        main_script_path = os.path.join(self.scripts_dir, script_name).replace(
+            "\\", "/"
+        )
         # Build variable assignments
-        var_assignments = "\n".join([f'set {var_name} "{var_value}"' for var_name, var_value in glob_var])
+        var_assignments = "\n".join(
+            [f'set {var_name} "{var_value}"' for var_name, var_value in glob_var]
+        )
 
         # Build variable cleanup
         var_cleanup = "\n".join(
-            [f'if {{[info exists {var_name}]}} {{unset {var_name}}}' for var_name, var_value in glob_var])
+            [
+                f"if {{[info exists {var_name}]}} {{unset {var_name}}}"
+                for var_name, var_value in glob_var
+            ]
+        )
         script_content = f"""
 set start_time [clock seconds]
 {var_assignments}
@@ -98,7 +117,7 @@ foreach var $safeVars {{
 {var_cleanup}
 """
 
-        with open(script_file, 'w', encoding='utf-8') as f:
+        with open(script_file, "w", encoding="utf-8") as f:
             f.write(script_content)
 
         return script_file
@@ -125,29 +144,32 @@ foreach var $safeVars {{
                     if current_size < last_read_position:
                         last_read_position = 0
 
-                    with open(log_file, 'r', encoding='utf-8') as f:
+                    with open(log_file, "r", encoding="utf-8") as f:
                         f.seek(last_read_position)
                         new_content = f.read()
                         last_read_position = f.tell()
 
                     if new_content.strip():
-                        for line in new_content.split('\n\r'):
+                        for line in new_content.split("\n\r"):
                             line = line.strip()
                             if line:
-                                self.message_logger.log_message('INFO', line)
+                                self.message_logger.log_message("INFO", line)
 
                     if "Script done!" in new_content:
                         execution_time = None
-                        for line in new_content.split('\n'):
+                        for line in new_content.split("\n"):
                             if "EXECUTION_TIME:" in line:
                                 try:
-                                    execution_time = line.split("EXECUTION_TIME:")[1].split(" ")[0]
+                                    execution_time = line.split("EXECUTION_TIME:")[
+                                        1
+                                    ].split(" ")[0]
                                 except:
                                     pass
                                 break
                         return {
-                            'success': True,
-                            'execution_time': execution_time or (time.time() - start_time)
+                            "success": True,
+                            "execution_time": execution_time
+                            or (time.time() - start_time),
                         }
 
                     if current_size > last_size:
@@ -155,12 +177,14 @@ foreach var $safeVars {{
                         last_growth_time = time.time()
 
                 except Exception as e:
-                    self.message_logger.log_message('WARNING', f"Error reading log file: {e}")
+                    self.message_logger.log_message(
+                        "WARNING", f"Error reading log file: {e}"
+                    )
 
             time.sleep(1)
 
         return {
-            'success': False,
-            'error': 'Log file stopped growing - possible hang',
-            'execution_time': time.time() - start_time
+            "success": False,
+            "error": "Log file stopped growing - possible hang",
+            "execution_time": time.time() - start_time,
         }

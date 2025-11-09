@@ -32,7 +32,7 @@ class MainApp:
 
         # Message area at the bottom
         self.log_widget = scrolledtext.ScrolledText(root, height=10)
-        self.log_widget.pack(side='bottom', fill='x')
+        self.log_widget.pack(side="bottom", fill="x")
         self.message_logger = MessageLogger(self.log_widget)
 
         # Set reference to main app for message logger
@@ -44,32 +44,44 @@ class MainApp:
         # Initialize tabs only if English layout is active
         if not self.non_english_layout_detected:
             try:
-                self.cable_automation_tab = CableAutomationTab(self.notebook, self.message_logger)
-                self.find_and_replace_tab = FindAndReplaceTab(self.notebook, self.message_logger)
+                self.cable_automation_tab = CableAutomationTab(
+                    self.notebook, self.message_logger
+                )
+                self.find_and_replace_tab = FindAndReplaceTab(
+                    self.notebook, self.message_logger
+                )
                 self.offpage_tab = OffPageTab(self.notebook, self.message_logger)
-                self.copy_xy_text_tab = CopyXYTextTab(self.notebook, self.message_logger)
+                self.copy_xy_text_tab = CopyXYTextTab(
+                    self.notebook, self.message_logger
+                )
                 self.copy_text_tab = CopyTextTab(self.notebook, self.message_logger)
             except NameError as e:
-                self.message_logger.log_message('ERROR', f"Error initializing tabs: {e}")
+                self.message_logger.log_message(
+                    "ERROR", f"Error initializing tabs: {e}"
+                )
                 raise
 
             # Add tabs to notebook
-            self.notebook.add(self.cable_automation_tab.frame, text=" Cable Automation ")
-            self.notebook.add(self.find_and_replace_tab.frame, text=" Find & replace text ")
+            self.notebook.add(
+                self.cable_automation_tab.frame, text=" Cable Automation "
+            )
+            self.notebook.add(
+                self.find_and_replace_tab.frame, text=" Find & replace text "
+            )
             self.notebook.add(self.offpage_tab.frame, text=" Connectors ")
             self.notebook.add(self.copy_xy_text_tab.frame, text=" Copy X, Y, Text ")
             self.notebook.add(self.copy_text_tab.frame, text=" Copy Text ")
         else:
             # Show warning message in the notebook area
             warning_frame = tk.Frame(self.notebook)
-            warning_frame.pack(fill='both', expand=True, padx=20, pady=20)
+            warning_frame.pack(fill="both", expand=True, padx=20, pady=20)
 
             warning_label = tk.Label(
                 warning_frame,
                 text="Application requires English keyboard layout\n\nPlease restart the application after layout change",
-                font=('Arial', 12, 'bold'),
-                fg='red',
-                justify='center'
+                font=("Arial", 12, "bold"),
+                fg="red",
+                justify="center",
             )
             warning_label.pack(expand=True)
 
@@ -86,15 +98,25 @@ class MainApp:
         if current_layout == english_layout_id:
             self.non_english_layout_detected = False
         else:
-            self.message_logger.log_message('WARNING', f'Non-English layout detected: {hex(current_layout)}')
-            self.message_logger.log_message('WARNING', 'Program must run with English keyboard layout only')
+            self.message_logger.log_message(
+                "WARNING", f"Non-English layout detected: {hex(current_layout)}"
+            )
+            self.message_logger.log_message(
+                "WARNING", "Program must run with English keyboard layout only"
+            )
 
             # Try to switch to English layout
             if screen_handler.set_english_layout_safe():
-                self.message_logger.log_message('INFO', 'Layout switched to English automatically')
-                self.message_logger.log_message('INFO', 'Please RESTART the application for proper operation')
+                self.message_logger.log_message(
+                    "INFO", "Layout switched to English automatically"
+                )
+                self.message_logger.log_message(
+                    "INFO", "Please RESTART the application for proper operation"
+                )
             else:
-                self.message_logger.log_message('ERROR', 'Failed to switch to English layout')
+                self.message_logger.log_message(
+                    "ERROR", "Failed to switch to English layout"
+                )
 
             self.non_english_layout_detected = True
 

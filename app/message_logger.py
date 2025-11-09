@@ -9,16 +9,16 @@ debug = False
 class MessageLogger:
     def __init__(self, log_widget: tk.scrolledtext.ScrolledText):
         self.log_widget = log_widget
-        self.log_widget.configure(state='disabled')
+        self.log_widget.configure(state="disabled")
         self.main_app = None  # Reference to main application
 
         # Color settings for different log levels
         self.colors = {
-            'ERROR': 'red',
-            'WARNING': 'orange',
-            'INFO': 'black',
-            'DEBUG': 'gray',
-            'SUCCESS': 'green'
+            "ERROR": "red",
+            "WARNING": "orange",
+            "INFO": "black",
+            "DEBUG": "gray",
+            "SUCCESS": "green",
         }
 
         # Storage for the last message
@@ -42,7 +42,9 @@ class MessageLogger:
         self.context_menu.add_command(label="Clear", command=self._clear_messages)
 
         # Bind right-click to show context menu
-        self.log_widget.bind("<Button-3>", self._show_context_menu)  # Button-3 is right-click
+        self.log_widget.bind(
+            "<Button-3>", self._show_context_menu
+        )  # Button-3 is right-click
 
         # Bind Ctrl+C and Ctrl+A
         self.log_widget.bind("<Control-c>", self._copy_selection_event)
@@ -87,9 +89,9 @@ class MessageLogger:
 
     def _clear_messages(self):
         """Clear all messages from the log widget"""
-        self.log_widget.configure(state='normal')
-        self.log_widget.delete('1.0', 'end')
-        self.log_widget.configure(state='disabled')
+        self.log_widget.configure(state="normal")
+        self.log_widget.delete("1.0", "end")
+        self.log_widget.configure(state="disabled")
         self._last_message = None
 
     def log_message(self, level: str, message: str, update_last: bool = False):
@@ -101,43 +103,43 @@ class MessageLogger:
         """
         level = level.upper()
         if level not in self.colors:
-            level = 'INFO'
+            level = "INFO"
 
         if debug:
-            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             formatted_message = f"{timestamp} - {message}\n"
         else:
             formatted_message = f"{message}\n"
 
-        self.log_widget.configure(state='normal')
+        self.log_widget.configure(state="normal")
 
         if update_last and self._last_message is not None:
             # Replace last message
-            self.log_widget.delete('end-2l', 'end')
+            self.log_widget.delete("end-2l", "end")
         else:
             # Add new line if not updating
-            self.log_widget.insert('end', '\n')
+            self.log_widget.insert("end", "\n")
 
         # Insert new message with color
-        self.log_widget.insert('end', formatted_message)
-        self.log_widget.tag_add(level, 'end-2l', 'end-1c')
+        self.log_widget.insert("end", formatted_message)
+        self.log_widget.tag_add(level, "end-2l", "end-1c")
         self.log_widget.tag_config(level, foreground=self.colors[level])
 
-        self.log_widget.configure(state='disabled')
+        self.log_widget.configure(state="disabled")
 
         # Store last message info
         self._last_message = message
         self._last_message_id += 1
 
         # Scroll to new message
-        self.log_widget.see('end')
+        self.log_widget.see("end")
 
     def update_last_message(self, new_message: str):
         """Update text of the last logged message"""
         if self._last_message is not None:
             # Get last message tags to determine level
-            tags = self.log_widget.tag_names('end-2l')
-            level = 'INFO'
+            tags = self.log_widget.tag_names("end-2l")
+            level = "INFO"
             for tag in tags:
                 if tag in self.colors:
                     level = tag
@@ -147,4 +149,4 @@ class MessageLogger:
 
 
 def log(self, message):
-    self.log_message('INFO', message)
+    self.log_message("INFO", message)

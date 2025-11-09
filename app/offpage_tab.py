@@ -7,10 +7,10 @@ from screen_handler import ScreenHandler
 from excel_utils import ExcelUtils
 from orcad_script_runner import OrcadScriptRunner
 
-script_copy_off = 'copy_offpage.tcl'
-script_repl_off = 'replace_offpage.tcl'
-script_change_dir_off = 'change_dir_offpage.tcl'
-file_csv = 'offpage.csv'
+script_copy_off = "copy_offpage.tcl"
+script_repl_off = "replace_offpage.tcl"
+script_change_dir_off = "change_dir_offpage.tcl"
+file_csv = "offpage.csv"
 
 
 class OffPageTab:
@@ -23,9 +23,7 @@ class OffPageTab:
         # Initialize ScreenHandler and ScriptRunner
         self.screen_handler = ScreenHandler(self.message_logger)
         self.script_runner = OrcadScriptRunner(
-            self.screen_handler,
-            self.message_logger,
-            self.get_scripts_dir()
+            self.screen_handler, self.message_logger, self.get_scripts_dir()
         )
 
         self.frame.grid_columnconfigure(0, weight=1)
@@ -38,7 +36,9 @@ class OffPageTab:
         self.tree.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
 
         # Add scrollbar for treeview
-        tree_scroll = ttk.Scrollbar(self.frame, orient="vertical", command=self.tree.yview)
+        tree_scroll = ttk.Scrollbar(
+            self.frame, orient="vertical", command=self.tree.yview
+        )
         tree_scroll.grid(row=0, column=0, sticky="nse", padx=(0, 5), pady=5)
         self.tree.configure(yscrollcommand=tree_scroll.set)
 
@@ -47,39 +47,62 @@ class OffPageTab:
 
         # Radiobuttons for scope (right side)
         self.scope_var = tk.StringVar(value="page")  # Default to Selected Objects
-        ttk.Radiobutton(radio_frame, text="Selected Objects", variable=self.scope_var,
-                        value="selected", state="disabled").pack(anchor="w", pady=5)
-        ttk.Radiobutton(radio_frame, text="Current Page", variable=self.scope_var,
-                        value="page", state="disabled").pack(anchor="w", pady=5)
-        ttk.Radiobutton(radio_frame, text="All Pages", variable=self.scope_var,
-                        value="all", state="disabled").pack(anchor="w", pady=5)
+        ttk.Radiobutton(
+            radio_frame,
+            text="Selected Objects",
+            variable=self.scope_var,
+            value="selected",
+            state="disabled",
+        ).pack(anchor="w", pady=5)
+        ttk.Radiobutton(
+            radio_frame,
+            text="Current Page",
+            variable=self.scope_var,
+            value="page",
+            state="disabled",
+        ).pack(anchor="w", pady=5)
+        ttk.Radiobutton(
+            radio_frame,
+            text="All Pages",
+            variable=self.scope_var,
+            value="all",
+            state="disabled",
+        ).pack(anchor="w", pady=5)
 
         # Store references to buttons
-        self.edit_excel_btn = ttk.Button(radio_frame, text="Edit in Excel",
-                                         command=self.edit_in_excel)
-        self.edit_excel_btn.pack(anchor="e", pady=(20, 5), fill='x')
+        self.edit_excel_btn = ttk.Button(
+            radio_frame, text="Edit in Excel", command=self.edit_in_excel
+        )
+        self.edit_excel_btn.pack(anchor="e", pady=(20, 5), fill="x")
 
-        self.load_excel_btn = ttk.Button(radio_frame, text="Load from csv",
-                                         command=self.load_from_excel)
-        self.load_excel_btn.pack(anchor="e", pady=(20, 5), fill='x')
+        self.load_excel_btn = ttk.Button(
+            radio_frame, text="Load from csv", command=self.load_from_excel
+        )
+        self.load_excel_btn.pack(anchor="e", pady=(20, 5), fill="x")
 
-        self.copy_btn = ttk.Button(radio_frame, text="Copy X, Y, names", command=self.copy_offpage)
-        self.copy_btn.pack(anchor="e", pady=(20, 5), fill='x')
+        self.copy_btn = ttk.Button(
+            radio_frame, text="Copy X, Y, names", command=self.copy_offpage
+        )
+        self.copy_btn.pack(anchor="e", pady=(20, 5), fill="x")
 
-        self.replace_btn = ttk.Button(radio_frame, text="Replace names", command=self.replace_offpage)
-        self.replace_btn.pack(anchor="e", pady=(20, 5), fill='x')
+        self.replace_btn = ttk.Button(
+            radio_frame, text="Replace names", command=self.replace_offpage
+        )
+        self.replace_btn.pack(anchor="e", pady=(20, 5), fill="x")
 
-        self.change_dir_btn = ttk.Button(radio_frame, text="Change direction", command=self.change_direction)
-        self.change_dir_btn.pack(anchor="e", pady=(20, 5), fill='x')
+        self.change_dir_btn = ttk.Button(
+            radio_frame, text="Change direction", command=self.change_direction
+        )
+        self.change_dir_btn.pack(anchor="e", pady=(20, 5), fill="x")
 
     def get_scripts_dir(self):
         """Get path to scripts directory"""
-        if getattr(sys, 'frozen', False):
+        if getattr(sys, "frozen", False):
             app_dir = os.path.dirname(sys.executable)
         else:
             app_dir = os.path.dirname(os.path.abspath(__file__))
 
-        if getattr(sys, 'frozen', False):
+        if getattr(sys, "frozen", False):
             # For executable: scripts folder is at same level as executable
             scripts_dir = os.path.join(app_dir, "scripts")
         else:
@@ -94,33 +117,41 @@ class OffPageTab:
         script_path = os.path.join(scripts_dir, script_name)
 
         if not os.path.exists(script_path):
-            self.message_logger.log_message('ERROR', f'Script file "{script_path}" not found!')
+            self.message_logger.log_message(
+                "ERROR", f'Script file "{script_path}" not found!'
+            )
             return
 
         csv_dir = os.path.join(os.path.dirname(scripts_dir), "data")
         csv_path = os.path.join(csv_dir, file_csv)
 
-        glob_var = [["::path_to_csv_file", csv_path.replace('\\', '/')]]
+        glob_var = [["::path_to_csv_file", csv_path.replace("\\", "/")]]
 
         def execution_callback(result):
-            button.config(state='normal')
-            if result['success']:
-                self.message_logger.log_message('SUCCESS', f"Script {script_name} executed successfully")
+            button.config(state="normal")
+            if result["success"]:
+                self.message_logger.log_message(
+                    "SUCCESS", f"Script {script_name} executed successfully"
+                )
                 # Auto-load table after successful copy
                 if auto_load:
                     self.load_from_excel()
             else:
-                self.message_logger.log_message('ERROR',
-                                                f"Script execution failed: {result.get('error', 'Unknown error')}")
+                self.message_logger.log_message(
+                    "ERROR",
+                    f"Script execution failed: {result.get('error', 'Unknown error')}",
+                )
 
         # Update button state
-        button.config(state='disabled')
+        button.config(state="disabled")
 
         # Execute the script
-        success = self.script_runner.execute_script(script_name, glob_var, execution_callback)
+        success = self.script_runner.execute_script(
+            script_name, glob_var, execution_callback
+        )
 
         if not success:
-            button.config(state='normal')
+            button.config(state="normal")
 
     def copy_offpage(self):
         """Copy offpage connector data with auto-load after success"""
@@ -136,25 +167,33 @@ class OffPageTab:
         script_path = os.path.join(scripts_dir, script_change_dir_off)
 
         if not os.path.exists(script_path):
-            self.message_logger.log_message('ERROR', f'Script file "{script_path}" not found!')
+            self.message_logger.log_message(
+                "ERROR", f'Script file "{script_path}" not found!'
+            )
             return
 
         def execution_callback(result):
-            self.change_dir_btn.config(state='normal')
-            if result['success']:
-                self.message_logger.log_message('SUCCESS', "Offpage directions changed successfully")
+            self.change_dir_btn.config(state="normal")
+            if result["success"]:
+                self.message_logger.log_message(
+                    "SUCCESS", "Offpage directions changed successfully"
+                )
             else:
-                self.message_logger.log_message('ERROR',
-                                                f"Script execution failed: {result.get('error', 'Unknown error')}")
+                self.message_logger.log_message(
+                    "ERROR",
+                    f"Script execution failed: {result.get('error', 'Unknown error')}",
+                )
 
         # Update button state
-        self.change_dir_btn.config(state='disabled')
+        self.change_dir_btn.config(state="disabled")
 
         # Execute the script
-        success = self.script_runner.execute_script(script_change_dir_off, [], execution_callback)
+        success = self.script_runner.execute_script(
+            script_change_dir_off, [], execution_callback
+        )
 
         if not success:
-            self.change_dir_btn.config(state='normal')
+            self.change_dir_btn.config(state="normal")
 
     def edit_in_excel(self):
         """Open CSV file directly in Microsoft Excel.
@@ -169,27 +208,35 @@ class OffPageTab:
             if not os.path.exists(csv_path):
                 # Create data directory if it doesn't exist
                 os.makedirs(csv_dir, exist_ok=True)
-                with open(csv_path, 'w') as f:
+                with open(csv_path, "w") as f:
                     f.write("")  # Create empty file
-                self.message_logger.log_message('SUCCESS', f"Created new CSV file: {csv_path}")
+                self.message_logger.log_message(
+                    "SUCCESS", f"Created new CSV file: {csv_path}"
+                )
 
             # Check if file is already open (locked)
             if self._is_file_locked(csv_path):
-                self.message_logger.log_message('ERROR', f"File is already open: {csv_path}")
+                self.message_logger.log_message(
+                    "ERROR", f"File is already open: {csv_path}"
+                )
                 return
 
             # Open the CSV file in Excel
             os.startfile(csv_path)
-            self.message_logger.log_message('SUCCESS', f"Opened CSV file in Excel: {csv_path}")
+            self.message_logger.log_message(
+                "SUCCESS", f"Opened CSV file in Excel: {csv_path}"
+            )
 
         except Exception as e:
-            self.message_logger.log_message('ERROR', f"Failed to open CSV file: {str(e)}")
+            self.message_logger.log_message(
+                "ERROR", f"Failed to open CSV file: {str(e)}"
+            )
 
     def _is_file_locked(self, filepath):
         """Check if file is locked by attempting to open it in exclusive mode"""
         try:
             if os.path.exists(filepath):
-                with open(filepath, 'a', encoding='utf-8') as f:
+                with open(filepath, "a", encoding="utf-8") as f:
                     pass
             return False
         except IOError:
@@ -202,15 +249,16 @@ class OffPageTab:
         csv_path = os.path.join(csv_dir, file_csv)
 
         if not os.path.exists(csv_path):
-            self.message_logger.log_message('ERROR', "CSV file does not exist")
+            self.message_logger.log_message("ERROR", "CSV file does not exist")
             return
 
         success = self.excel_utils.load_csv_to_treeview(
-            csv_path=csv_path,
-            tree=self.tree
+            csv_path=csv_path, tree=self.tree
         )
 
         if success:
-            self.message_logger.log_message('SUCCESS', f"Loaded data from {csv_path}")
+            self.message_logger.log_message("SUCCESS", f"Loaded data from {csv_path}")
         else:
-            self.message_logger.log_message('ERROR', f"Failed to load data from {csv_path}")
+            self.message_logger.log_message(
+                "ERROR", f"Failed to load data from {csv_path}"
+            )

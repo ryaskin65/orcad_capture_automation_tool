@@ -29,7 +29,7 @@ def set_english_layout():
             win32con.HWND_BROADCAST,
             win32con.WM_INPUTLANGCHANGEREQUEST,
             0,
-            english_layout_id
+            english_layout_id,
         )
 
         # Method 2: Direct activation
@@ -41,7 +41,7 @@ def set_english_layout():
             win32con.HWND_BROADCAST,
             win32con.WM_INPUTLANGCHANGEREQUEST,
             1,  # INPUTLANGCHANGE_SYSCHARSET
-            english_layout_id
+            english_layout_id,
         )
 
         return True
@@ -55,8 +55,15 @@ def ensure_caps_lock_off():
     try:
         caps_lock_state = win32api.GetKeyState(win32con.VK_CAPITAL)
         if caps_lock_state & 0x0001:
-            win32api.keybd_event(win32con.VK_CAPITAL, 0, win32con.KEYEVENTF_EXTENDEDKEY, 0)
-            win32api.keybd_event(win32con.VK_CAPITAL, 0, win32con.KEYEVENTF_EXTENDEDKEY | win32con.KEYEVENTF_KEYUP, 0)
+            win32api.keybd_event(
+                win32con.VK_CAPITAL, 0, win32con.KEYEVENTF_EXTENDEDKEY, 0
+            )
+            win32api.keybd_event(
+                win32con.VK_CAPITAL,
+                0,
+                win32con.KEYEVENTF_EXTENDEDKEY | win32con.KEYEVENTF_KEYUP,
+                0,
+            )
             return True
         return False
     except:
@@ -65,7 +72,7 @@ def ensure_caps_lock_off():
 
 def launch_main_app():
     """Launch main application"""
-    if getattr(sys, 'frozen', False):
+    if getattr(sys, "frozen", False):
         # Running as executable - find main app in same directory
         app_dir = os.path.dirname(sys.executable)
         main_app = os.path.join(app_dir, "cable_automation.exe")
@@ -76,7 +83,7 @@ def launch_main_app():
 
     if os.path.exists(main_app):
         try:
-            if getattr(sys, 'frozen', False):
+            if getattr(sys, "frozen", False):
                 subprocess.Popen([main_app])
             else:
                 python = sys.executable
@@ -88,6 +95,7 @@ def launch_main_app():
     else:
         print(f"Main application not found at: {main_app}")
         return False
+
 
 def main():
     """Main function"""

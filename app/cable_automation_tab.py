@@ -250,54 +250,6 @@ class CableAutomationTab:
         if not result['success']:
             self.message_logger.log_message('ERROR', f"Script execution failed: {result.get('error', 'Unknown error')}")
 
-    # def draw(self):
-    #     """Handle draw action with page selection"""
-    #     if self.script_runner.is_executing:
-    #         self.message_logger.log_message('WARNING', "Script is already running")
-    #         return
-    #
-    #     try:
-    #         if not self.tree.get_children():
-    #             self.load_from_excel()
-    #             if not self.tree.get_children():
-    #                 self.message_logger.log_message('ERROR', "No data to draw")
-    #                 return
-    #
-    #         if not xlsx_path:
-    #             self.message_logger.log_message('ERROR', "Excel path not configured")
-    #             return
-    #
-    #         if not os.path.exists(xlsx_path):
-    #             self.message_logger.log_message('ERROR', "Excel file does not exist")
-    #             return
-    #
-    #         # Convert Excel to CSV in data directory
-    #         # csv_filename = os.path.splitext(os.path.basename(xlsx_path))[0] + '.csv'
-    #         csv_filename = 'cable.csv'
-    #         csv_path = os.path.join(self.get_data_dir(), csv_filename)
-    #
-    #         data = []
-    #         for item in self.tree.get_children():
-    #             row = list(self.tree.item(item, 'values'))
-    #             data.append(row)
-    #
-    #         self.excel_utils.save_list_to_csv(
-    #             data=data,
-    #             csv_path=csv_path
-    #         )
-    #
-    #         glob_var = [["::path_to_csv_file", csv_path.replace('\\', '/')]]
-    #
-    #         # Execute the script
-    #         success = self.script_runner.execute_script(script_name, glob_var, self._on_execution_complete)
-    #
-    #         if success:
-    #             self.draw_button.config(state='disabled', text='Running...')
-    #
-    #     except Exception as e:
-    #         self.message_logger.log_message('ERROR', f"Error during drawing: {str(e)}")
-    #         self.draw_button.config(state='normal', text='Run script')
-
     def validate_before_draw(self):
         """Validate cable data before running the script"""
         try:

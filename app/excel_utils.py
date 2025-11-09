@@ -149,7 +149,9 @@ class ExcelUtils:
                 except UnicodeDecodeError:
                     continue
             else:
-                self.message_logger.log_message('ERROR', "Failed to read CSV file with any encoding")
+                self.message_logger.log_message(
+                    "ERROR", "Failed to read CSV file with any encoding"
+                )
                 return False
 
             if not data_rows:
