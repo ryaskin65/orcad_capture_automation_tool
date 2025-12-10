@@ -1,4 +1,4 @@
-# RIGa&DeepSeek 06.12.2025
+# RIGa&DeepSeek 10.12.2025
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
@@ -262,33 +262,18 @@ class CableAutomationTab:
 
     def validate_before_draw(self):
         """Validate and convert cable data before running the script"""
-        global xlsx_path  # ДОЛЖНО БЫТЬ В НАЧАЛЕ
-
         try:
             if not xlsx_path:
                 self.message_logger.log_message("ERROR", "No Excel file selected")
                 return False
 
-            # Create temporary output path for conversion
-            input_dir = os.path.dirname(xlsx_path)
-            input_name = os.path.splitext(os.path.basename(xlsx_path))[0]
-            temp_output_path = os.path.join(
-                input_dir, f"{input_name}_temp_converted.xlsx"
-            )
+            # Perform conversion IN MEMORY without saving to file
+            success, converted_data = self._convert_in_memory(xlsx_path)
 
-            # Perform conversion (same as Convert Format button)
-            success, errors, warnings = self.converter.convert_excel_file(
-                xlsx_path, temp_output_path
-            )
-
-            # Check conversion result
             if not success:
-                error_msg = "\n".join(errors) if errors else "Conversion failed"
-                self.message_logger.log_message(
-                    "ERROR", f"Conversion failed: {error_msg}"
-                )
+                error_msg = "Conversion failed"
+                self.message_logger.log_message("ERROR", error_msg)
 
-                # Show error message
                 from tkinter import messagebox
 
                 messagebox.showerror(
@@ -297,64 +282,89 @@ class CableAutomationTab:
                 )
                 return False
 
-            # Load converted data using existing ExcelUtils method
-            success = self.excel_utils.load_excel_to_treeview(
-                excel_path=temp_output_path, tree=self.tree
+            # Store converted data for later use in draw()
+            self.converted_data = converted_data
+
+            # Load converted data to treeview for verification
+            self._load_converted_data_to_treeview(converted_data)
+
+            self.message_logger.log_message(
+                "SUCCESS", f"Data converted and validated successfully."
             )
 
-            if success:
-                self.message_logger.log_message(
-                    "SUCCESS", f"Data converted and validated successfully."
-                )
-
-                # Update xlsx_path to use converted file for script execution
-                xlsx_path = temp_output_path
-
-                return True
-            else:
-                self.message_logger.log_message(
-                    "ERROR", "Failed to load converted file"
-                )
-                return False
+            return True
 
         except Exception as e:
             self.message_logger.log_message("ERROR", f"Validation error: {str(e)}")
             return False
 
+    def _convert_in_memory(self, input_path: str):
+        """Convert Excel file in memory without saving to file"""
+        try:
+            # Load input workbook
+            from openpyxl import load_workbook
+
+            input_wb = load_workbook(input_path)
+            input_ws = input_wb.active
+
+            # Parse input data
+            input_data = self.converter._parse_input_worksheet(input_ws)
+            if not input_data:
+                return False, []
+
+            # Validate data structure
+            is_valid, validation_errors, validation_warnings = (
+                self.converter._validate_data_structure(input_data)
+            )
+            if not is_valid:
+                return False, []
+
+            # Convert data format and auto-process
+            success, converted_data = self.converter._convert_and_process_data(
+                input_data
+            )
+            return success, converted_data
+
+        except Exception as e:
+            self.message_logger.log_message("ERROR", f"Conversion error: {str(e)}")
+            return False, []
+
+    def _load_converted_data_to_treeview(self, converted_data: list):
+        """Load converted data directly to treeview"""
+        # Clear existing data
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+
+        # Insert converted data
+        for row in converted_data:
+            # Convert None to empty strings
+            cleaned_row = ["" if cell is None else str(cell) for cell in row]
+            self.tree.insert("", "end", values=cleaned_row)
+
     def draw(self):
         """Handle draw action with validation"""
-        if self.script_runner.is_executing:
-            self.message_logger.log_message("WARNING", "Script is already running")
-            return
-
         try:
             # Validate AND convert before drawing
             if not self.validate_before_draw():
                 return
 
-            # Continue with original draw logic if validation passed
-            if not self.tree.get_children():
-                self.message_logger.log_message("ERROR", "No data to draw")
+            # Use the converted data from validate_before_draw()
+            if not hasattr(self, "converted_data") or not self.converted_data:
+                self.message_logger.log_message("ERROR", "No converted data available")
                 return
 
-            if not xlsx_path:
-                self.message_logger.log_message("ERROR", "Excel path not configured")
-                return
-
-            if not os.path.exists(xlsx_path):
-                self.message_logger.log_message("ERROR", "Excel file does not exist")
-                return
-
-            # Convert Excel to CSV in data directory
+            # Convert to CSV in data directory
             csv_filename = "cable.csv"
             csv_path = os.path.join(self.get_data_dir(), csv_filename)
 
-            data = []
-            for item in self.tree.get_children():
-                row = list(self.tree.item(item, "values"))
-                data.append(row)
+            # Save converted data directly to CSV
+            success = self.excel_utils.save_list_to_csv(
+                data=self.converted_data, csv_path=csv_path
+            )
 
-            self.excel_utils.save_list_to_csv(data=data, csv_path=csv_path)
+            if not success:
+                self.message_logger.log_message("ERROR", "Failed to save CSV file")
+                return
 
             glob_var = [["::path_to_csv_file", csv_path.replace("\\", "/")]]
 

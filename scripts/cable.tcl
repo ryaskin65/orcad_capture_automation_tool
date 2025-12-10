@@ -1,4 +1,4 @@
-# RIGa&DeepSeek 07.11.2025
+# RIGa&DeepSeek 10.12.2025
 # Script to cable automation from csv table
 
 # Global constant
@@ -164,11 +164,6 @@ proc PlaceRectangleCheck {X Y L W} {
 # Place wire with check coordinates
 proc PlaceWireCheck {X1 Y1 X2 Y2} {
 	global A3_WIDTH A3_HEIGHT
-    # Check for zero-length wire
-    if {$X1 == $X2 && $Y1 == $Y2} {
-        SafeLog "Warning: Zero-length wire skipped at: X1=$X1, Y1=$Y1, X2=$X2, Y2=$Y2"
-        return
-    }
 	# Check if coordinates are numeric
 	if {![string is double -strict $X1] || ![string is double -strict $Y1] || 
 		![string is double -strict $X2] || ![string is double -strict $Y2]} {
@@ -180,6 +175,11 @@ proc PlaceWireCheck {X1 Y1 X2 Y2} {
     set X2 [format "%.2f" $X2]
     set Y2 [format "%.2f" $Y2]	
 	SafeLog "Place wire: X1=$X1, Y1=$Y1, X2=$X2, Y2=$Y2"
+    # Check for zero-length wire
+    if {$X1 == $X2 && $Y1 == $Y2} {
+        SafeLog "Warning: Zero-length wire skipped at: X1=$X1, Y1=$Y1, X2=$X2, Y2=$Y2"
+        return
+    }
 	# Check if coordinates are within A3 bounds
 	if {($X1 < 0) || ($X1 > $A3_WIDTH) || ($X2 < 0) || ($X2 > $A3_WIDTH) || 
 		($Y1 < 0) || ($Y1 > $A3_HEIGHT) || ($Y2 < 0) || ($Y2 > $A3_HEIGHT)} {
@@ -203,6 +203,11 @@ proc PlaceLineSieldCheck {X1 Y1 X2 Y2} {
     set X2 [format "%.2f" $X2]
     set Y2 [format "%.2f" $Y2]	
 	SafeLog "Place line: X1=$X1, Y1=$Y1, X2=$X2, Y2=$Y2"
+    # Check for zero-length line
+    if {$X1 == $X2 && $Y1 == $Y2} {
+        SafeLog "Warning: Zero-length line skipped at: X1=$X1, Y1=$Y1, X2=$X2, Y2=$Y2"
+        return
+    }
 	# Check if coordinates are within A3 bounds
 	if {($X1 < 0) || ($X1 > $A3_WIDTH) || ($X2 < 0) || ($X2 > $A3_WIDTH) || 
 		($Y1 < 0) || ($Y1 > $A3_HEIGHT) || ($Y2 < 0) || ($Y2 > $A3_HEIGHT)} {
@@ -237,6 +242,12 @@ proc PlaceArcShieldTopCheck {X Y} {
 	set Y3 [format "%.2f" [expr {$Y1 + 2 * $STEP_XY}]]
 	set X4 [format "%.2f" [expr {$X1 + 0 * $STEP_XY}]]
 	set Y4 [format "%.2f" [expr {$Y1 + 2 * $STEP_XY}]]
+	SafeLog "Place arc: X1=$X1, Y1=$Y1, X2=$X2, Y2=$Y2, X3=$X3, Y3=$Y3, X4=$X4, Y4=$Y4"
+    # Check for zero-length arc
+	if {($X1 == $X2 && $Y1 == $Y2) || ($X3 == $X4 && $Y3 == $Y4)} {
+        SafeLog "Warning: Zero-length arc skipped at: X1=$X1, Y1=$Y1, X2=$X2, Y2=$Y2, X3=$X3, Y3=$Y3, X4=$X4, Y4=$Y4"
+        return
+    }
 	# Check if coordinates are within A3 bounds
 	if {($X2 > $A3_WIDTH) || ($Y1 > $A3_HEIGHT) || ($Y2 > $A3_HEIGHT)} {
 		SafeLog "ERROR: Arc out of size in PlaceArc: Y1=$Y1, X2=$X2, Y2=$Y2"
@@ -270,6 +281,12 @@ proc PlaceArcShieldBottomCheck {X Y} {
 	set Y3 [format "%.2f" [expr {$Y1 + 2 * $STEP_XY}]]
 	set X4 [format "%.2f" [expr {$X1 + 0 * $STEP_XY}]]
 	set Y4 [format "%.2f" [expr {$Y1 + 2 * $STEP_XY}]]
+	SafeLog "Place arc: X1=$X1, Y1=$Y1, X2=$X2, Y2=$Y2, X3=$X3, Y3=$Y3, X4=$X4, Y4=$Y4"
+    # Check for zero-length arc
+	if {($X1 == $X2 && $Y1 == $Y2) || ($X3 == $X4 && $Y3 == $Y4)} {
+        SafeLog "Warning: Zero-length arc skipped at: X1=$X1, Y1=$Y1, X2=$X2, Y2=$Y2, X3=$X3, Y3=$Y3, X4=$X4, Y4=$Y4"
+        return
+    }
 	# Check if coordinates are within A3 bounds
 	if {($X2 > $A3_WIDTH) || ($Y1 > $A3_HEIGHT) || ($Y2 > $A3_HEIGHT)} {
 		SafeLog "ERROR: Arc out of size in PlaceArc: Y1=$Y1, X2=$X2, Y2=$Y2"
@@ -593,7 +610,7 @@ proc PlaceRightWireWithOffset {XDR YD Y Offset} {
 		if {$Offset > 0} {
 			# !!!Top and right side!!!
 			# Vertical wire
-			if {$Y != $YD} {
+			if {abs($Y + $STEP_XY - ($YD - $STEP_XY)) > 0.001} {
 				PlaceWireCheck $XDR [expr $Y + $STEP_XY] $XDR [expr $YD - $STEP_XY]
 			}
 			# First slant - close Y
@@ -603,7 +620,7 @@ proc PlaceRightWireWithOffset {XDR YD Y Offset} {
 		} elseif {$Offset < 0} {
 			# !!!Bottom and right side!!!
 			# Vertical wire
-			if {$Y != $YD} {
+			if {abs($Y - $STEP_XY - ($YD + $STEP_XY)) > 0.001} {
 				PlaceWireCheck $XDR [expr $Y - $STEP_XY] $XDR [expr $YD + $STEP_XY]
 			}
 			# First slant - close Y
@@ -624,7 +641,7 @@ proc PlaceLeftWireWithOffset {XDL YD Y Offset} {
 		if {$Offset > 0} {
 			# !!!Top and left side!!!
 			# Vertical wire
-			if {$Y != $YD} {
+			if {abs($Y + $STEP_XY - ($YD - $STEP_XY)) > 0.001} {
 				PlaceWireCheck $XDL [expr $Y + $STEP_XY] $XDL [expr $YD - $STEP_XY]
 			}
 			# First slant - close Y
@@ -634,7 +651,7 @@ proc PlaceLeftWireWithOffset {XDL YD Y Offset} {
 		} elseif {$Offset < 0} {
 			# !!!Bottom and left side!!!
 			# Vertical wire
-			if {$Y != $YD} {
+			if {abs($Y - $STEP_XY - ($YD + $STEP_XY)) > 0.001} {
 				PlaceWireCheck $XDL [expr $Y - $STEP_XY] $XDL [expr $YD + $STEP_XY]
 			}
 			# First slant - close Y

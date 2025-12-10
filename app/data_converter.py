@@ -717,12 +717,15 @@ class DataConverter:
         left_connections = {}  # wire_num -> target_wire_num for left side
         right_connections = {}  # wire_num -> target_wire_num for right side
 
+        # Create reverse mapping: visual number -> actual wire number
+        visual_to_actual = {visual: actual for actual, visual in visual_numbers.items()}
+
         # Collect all connections using VISUAL wire numbers
         for i, wire in enumerate(wires):
             wire_num = i + 1
             signal_name = wire.get("Signal name", "")
 
-            # LEFT connections
+            # LEFT connections (Connect to left wire with number)
             connect_left_str = wire.get("Connect to left wire with number", "")
             if connect_left_str and str(connect_left_str).strip():
                 try:
@@ -730,20 +733,23 @@ class DataConverter:
                     if connect_left:
                         # Target wire number from input is VISUAL number
                         target_visual = int(connect_left)
-                        # Find which actual wire has this visual number
-                        target_actual = None
-                        for actual, visual in visual_numbers.items():
-                            if visual == target_visual:
-                                target_actual = actual
-                                break
+                        # Find actual wire number using reverse mapping
+                        target_actual = visual_to_actual.get(target_visual)
 
                         if target_actual and 1 <= target_actual <= len(wires):
                             if target_actual != wire_num:
                                 left_connections[wire_num] = target_actual
+                            else:
+                                self.warnings.append(
+                                    f"Wire '{signal_name}': Cannot connect to itself (left)"
+                                )
                 except ValueError:
-                    pass
+                    # Not a number, might be empty or other value
+                    self.warnings.append(
+                        f"Wire '{signal_name}': Invalid left connection '{connect_left_str}'"
+                    )
 
-            # RIGHT connections
+            # RIGHT connections (Connect to right wire with number)
             connect_right_str = wire.get("Connect to right wire with number", "")
             if connect_right_str and str(connect_right_str).strip():
                 try:
@@ -751,20 +757,23 @@ class DataConverter:
                     if connect_right:
                         # Target wire number from input is VISUAL number
                         target_visual = int(connect_right)
-                        # Find which actual wire has this visual number
-                        target_actual = None
-                        for actual, visual in visual_numbers.items():
-                            if visual == target_visual:
-                                target_actual = actual
-                                break
+                        # Find actual wire number using reverse mapping
+                        target_actual = visual_to_actual.get(target_visual)
 
                         if target_actual and 1 <= target_actual <= len(wires):
                             if target_actual != wire_num:
                                 right_connections[wire_num] = target_actual
+                            else:
+                                self.warnings.append(
+                                    f"Wire '{signal_name}': Cannot connect to itself (right)"
+                                )
                 except ValueError:
-                    pass
+                    # Not a number, might be empty or other value
+                    self.warnings.append(
+                        f"Wire '{signal_name}': Invalid right connection '{connect_right_str}'"
+                    )
 
-        # Create connection map for grouping (using actual wire numbers)
+        # Create connection map for grouping
         connection_map = {}
         for wire_num, target in left_connections.items():
             if target not in connection_map:
