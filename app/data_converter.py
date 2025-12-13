@@ -1,4 +1,4 @@
-# RIGa&DeepSeek 06.12.2025
+# RIGa&DeepSeek 13.12.2025
 
 import os
 from typing import Dict, List, Tuple, Optional
@@ -400,12 +400,18 @@ class DataConverter:
 
         return errors
 
-    def _split_connector_pin(self, connector_pin: str) -> Tuple[Optional[str], Optional[str]]:
+    def _split_connector_pin(
+        self, connector_pin: str
+    ) -> Tuple[Optional[str], Optional[str]]:
         """Split connector/pin into separate parts"""
-        if "/" not in connector_pin:
+        if not connector_pin or "/" not in connector_pin:
             return None, None
-        parts = connector_pin.split("/")
-        return parts[0].strip(), parts[1].strip()
+
+        parts = connector_pin.split("/", 1)  # Split only on first "/"
+        connector_name = parts[0].strip()
+        pin_name = parts[1].strip() if len(parts) > 1 else ""
+
+        return connector_name, pin_name
 
     def _validate_signal_names(self, page_name: str, wires: List[Dict]) -> Tuple[List, List]:
         """Validate signal name uniqueness"""
@@ -498,37 +504,38 @@ class DataConverter:
         return True, processed_wires
 
     def _calculate_visual_wire_numbers(self, wires: List[Dict]) -> Dict[int, int]:
-        """Calculate visual wire numbers considering twisted pair and connector change offsets"""
-        visual_numbers = {}
-        visual_counter = 1
+        """Calculate coordinate Y values considering twisted pairs and connector/group changes"""
+        coordinate_y = {}
+        current_coordinate = 1  # Start coordinate
 
-        # Group wires by connectors to find boundaries
+        # Group wires by connectors AND pin groups
         connector_groups = self._group_wires_by_connectors(wires)
 
         i = 0
         while i < len(wires):
             wire = wires[i]
             wire_num = i + 1
-            wire_type = wire.get("Type", "").upper()
 
-            # Check if current wire starts a new connector group (add +3 if yes)
+            # Check if current wire starts a new connector/pin group
             current_group = self._get_connector_group(wire_num, connector_groups)
             if current_group and wire_num == current_group[0] and wire_num > 1:
-                # This wire starts a new connector group, add +3 offset
-                visual_counter += 3
+                # This wire starts a new connector or pin group, add +3 offset
+                # Even if both sides change simultaneously, we add only +3, not +6
+                current_coordinate += 3
 
             # Handle twisted pairs
+            wire_type = wire.get("Type", "").upper()
             if wire_type in ["TWISTED", "TW", "SHIELDED TWISTED", "ST"]:
                 # First wire of twisted pair
-                visual_numbers[i + 1] = visual_counter
-                visual_counter += 1
+                coordinate_y[i + 1] = current_coordinate
+                current_coordinate += 1
 
                 # Second wire of twisted pair (if exists)
                 if i + 1 < len(wires):
-                    visual_numbers[i + 2] = visual_counter
-                    visual_counter += 1
+                    coordinate_y[i + 2] = current_coordinate
+                    current_coordinate += 1
 
-                # Check if twisted pair is LAST in its connector group
+                # Check if twisted pair is LAST in its connector/pin group
                 is_last_in_group = False
                 if current_group:
                     last_wire_in_group = current_group[-1]
@@ -536,56 +543,109 @@ class DataConverter:
                     if i + 2 == last_wire_in_group:
                         is_last_in_group = True
 
-                # Add +1 offset AFTER twisted pair ONLY if NOT last in connector
+                # Add +1 offset AFTER twisted pair ONLY if NOT last in connector/group
                 i += 2
                 if not is_last_in_group:
-                    visual_counter += 1  # Extra offset after twisted pair
+                    current_coordinate += 1  # Extra offset after twisted pair
             else:
                 # Regular wire
-                visual_numbers[i + 1] = visual_counter
-                visual_counter += 1
+                coordinate_y[i + 1] = current_coordinate
+                current_coordinate += 1
                 i += 1
 
-        return visual_numbers
+        return coordinate_y
+
+    def _extract_pin_group(self, pin_name: str) -> str:
+        """Extract pin group from pin name (A, B, C, D for groups 1-9)"""
+        if not pin_name:
+            return ""
+
+        # Pin must be exactly 2 characters: letter + number
+        if len(pin_name) == 2:
+            letter = pin_name[0].upper()
+            number_char = pin_name[1]
+
+            # Check if letter is A, B, C, D and number is 1-9
+            if letter in ["A", "B", "C", "D"] and number_char.isdigit():
+                number = int(number_char)
+                if 1 <= number <= 9:
+                    return letter  # Return group letter (A, B, C, D)
+
+        return ""  # Not a group pin
 
     def _group_wires_by_connectors(self, wires: List[Dict]) -> List[List[int]]:
-        """Group wire numbers by their connectors (both left and right sides)"""
+        """Group wire numbers by their connectors and pin groups"""
         groups = []
         current_group = []
         prev_left_connector = None
         prev_right_connector = None
+        prev_left_group = None
+        prev_right_group = None
 
         for i, wire in enumerate(wires):
             wire_num = i + 1
             left_connector = wire.get("Left connector", "")
             right_connector = wire.get("Right connector", "")
 
-            # Extract connector names
-            left_conn_name = self._extract_connector_name(left_connector)
-            right_conn_name = self._extract_connector_name(right_connector)
+            # Extract connector names and pin groups
+            left_conn_name, left_pin_name = self._split_connector_pin(left_connector)
+            right_conn_name, right_pin_name = self._split_connector_pin(right_connector)
 
-            # Check if connector changed on EITHER side
-            connector_changed = (
-                prev_left_connector is not None
-                and left_conn_name
-                and left_conn_name != prev_left_connector
-            ) or (
-                prev_right_connector is not None
-                and right_conn_name
-                and right_conn_name != prev_right_connector
-            )
+            # Extract pin group (A, B, C, D)
+            left_pin_group = self._extract_pin_group(left_pin_name)
+            right_pin_group = self._extract_pin_group(right_pin_name)
 
-            if connector_changed and current_group:
-                # End current group and start new one
+            # Check if connector OR pin group changed on EITHER side
+            connector_or_group_changed = False
+
+            # LEFT side check
+            if prev_left_connector is not None and left_conn_name:
+                # Case 1: Connector name changed
+                if left_conn_name != prev_left_connector:
+                    connector_or_group_changed = True
+                # Case 2: Same connector but pin group changed AND previous had group
+                elif left_conn_name == prev_left_connector:
+                    if prev_left_group and left_pin_group:
+                        if left_pin_group != prev_left_group:
+                            connector_or_group_changed = True
+                    # Case 3: Previous had no group, current has group (or vice versa)
+                    elif (prev_left_group and not left_pin_group) or (
+                        not prev_left_group and left_pin_group
+                    ):
+                        connector_or_group_changed = True
+
+            # RIGHT side check
+            if prev_right_connector is not None and right_conn_name:
+                # Case 1: Connector name changed
+                if right_conn_name != prev_right_connector:
+                    connector_or_group_changed = True
+                # Case 2: Same connector but pin group changed AND previous had group
+                elif right_conn_name == prev_right_connector:
+                    if prev_right_group and right_pin_group:
+                        if right_pin_group != prev_right_group:
+                            connector_or_group_changed = True
+                    # Case 3: Previous had no group, current has group (or vice versa)
+                    elif (prev_right_group and not right_pin_group) or (
+                        not prev_right_group and right_pin_group
+                    ):
+                        connector_or_group_changed = True
+
+            # If either side changed, start new group
+            if connector_or_group_changed and current_group:
                 groups.append(current_group)
                 current_group = []
 
             # Add wire to current group
             current_group.append(wire_num)
 
-            # Update previous connectors
-            prev_left_connector = left_conn_name
-            prev_right_connector = right_conn_name
+            # Update previous values (only if connector exists)
+            if left_conn_name:
+                prev_left_connector = left_conn_name
+                prev_left_group = left_pin_group
+
+            if right_conn_name:
+                prev_right_connector = right_conn_name
+                prev_right_group = right_pin_group
 
         # Add last group if not empty
         if current_group:
@@ -596,7 +656,7 @@ class DataConverter:
     def _get_connector_group(
         self, wire_num: int, connector_groups: List[List[int]]
     ) -> List[int]:
-        """Get connector group for a specific wire number"""
+        """Get connector/pin group for a specific wire number"""
         for group in connector_groups:
             if wire_num in group:
                 return group
@@ -713,14 +773,15 @@ class DataConverter:
     def _calculate_connection_parameters(
         self, wires: List[Dict], visual_numbers: Dict[int, int]
     ) -> Tuple[bool, List[List]]:
-        """Calculate connection-based offsets and groups using visual wire numbers"""
-        left_connections = {}  # wire_num -> target_wire_num for left side
-        right_connections = {}  # wire_num -> target_wire_num for right side
+        """Calculate connection-based offsets and groups using coordinate Y values"""
+        left_connections = {}  # source_wire_num -> target_wire_num for left side
+        right_connections = {}  # source_wire_num -> target_wire_num for right side
 
-        # Create reverse mapping: visual number -> actual wire number
-        visual_to_actual = {visual: actual for actual, visual in visual_numbers.items()}
+        # Create mapping: wire number -> coordinate Y
+        wire_to_coordinate = visual_numbers  # This contains coordinate Y for each wire
 
-        # Collect all connections using VISUAL wire numbers
+        # Collect all connections using WIRE NUMBERS (not coordinates)
+        # User enters wire numbers in Excel, not coordinates
         for i, wire in enumerate(wires):
             wire_num = i + 1
             signal_name = wire.get("Signal name", "")
@@ -731,22 +792,25 @@ class DataConverter:
                 try:
                     connect_left = str(connect_left_str).strip()
                     if connect_left:
-                        # Target wire number from input is VISUAL number
-                        target_visual = int(connect_left)
-                        # Find actual wire number using reverse mapping
-                        target_actual = visual_to_actual.get(target_visual)
+                        # User enters TARGET WIRE NUMBER (not coordinate)
+                        target_wire_num = int(connect_left)
 
-                        if target_actual and 1 <= target_actual <= len(wires):
-                            if target_actual != wire_num:
-                                left_connections[wire_num] = target_actual
+                        # Validate target wire number
+                        if 1 <= target_wire_num <= len(wires):
+                            if target_wire_num != wire_num:
+                                left_connections[wire_num] = target_wire_num
                             else:
                                 self.warnings.append(
                                     f"Wire '{signal_name}': Cannot connect to itself (left)"
                                 )
+                        else:
+                            self.warnings.append(
+                                f"Wire '{signal_name}': Invalid left connection wire number '{target_wire_num}'"
+                            )
                 except ValueError:
                     # Not a number, might be empty or other value
                     self.warnings.append(
-                        f"Wire '{signal_name}': Invalid left connection '{connect_left_str}'"
+                        f"Wire '{signal_name}': Invalid left connection value '{connect_left_str}'"
                     )
 
             # RIGHT connections (Connect to right wire with number)
@@ -755,40 +819,46 @@ class DataConverter:
                 try:
                     connect_right = str(connect_right_str).strip()
                     if connect_right:
-                        # Target wire number from input is VISUAL number
-                        target_visual = int(connect_right)
-                        # Find actual wire number using reverse mapping
-                        target_actual = visual_to_actual.get(target_visual)
+                        # User enters TARGET WIRE NUMBER (not coordinate)
+                        target_wire_num = int(connect_right)
 
-                        if target_actual and 1 <= target_actual <= len(wires):
-                            if target_actual != wire_num:
-                                right_connections[wire_num] = target_actual
+                        # Validate target wire number
+                        if 1 <= target_wire_num <= len(wires):
+                            if target_wire_num != wire_num:
+                                right_connections[wire_num] = target_wire_num
                             else:
                                 self.warnings.append(
                                     f"Wire '{signal_name}': Cannot connect to itself (right)"
                                 )
+                        else:
+                            self.warnings.append(
+                                f"Wire '{signal_name}': Invalid right connection wire number '{target_wire_num}'"
+                            )
                 except ValueError:
                     # Not a number, might be empty or other value
                     self.warnings.append(
-                        f"Wire '{signal_name}': Invalid right connection '{connect_right_str}'"
+                        f"Wire '{signal_name}': Invalid right connection value '{connect_right_str}'"
                     )
 
-        # Create connection map for grouping
+        # Create connection map for grouping (wire number based)
         connection_map = {}
-        for wire_num, target in left_connections.items():
-            if target not in connection_map:
-                connection_map[target] = set()
-            connection_map[target].add(wire_num)
 
-        for wire_num, target in right_connections.items():
-            if target not in connection_map:
-                connection_map[target] = set()
-            connection_map[target].add(wire_num)
+        # Process left connections
+        for source_wire, target_wire in left_connections.items():
+            if target_wire not in connection_map:
+                connection_map[target_wire] = set()
+            connection_map[target_wire].add(source_wire)
+
+        # Process right connections
+        for source_wire, target_wire in right_connections.items():
+            if target_wire not in connection_map:
+                connection_map[target_wire] = set()
+            connection_map[target_wire].add(source_wire)
 
         # Calculate groups to prevent short circuits
         groups = self._calculate_groups(connection_map, len(wires))
 
-        # Process each wire
+        # Process each wire to calculate offsets using COORDINATES
         processed_wires = []
         for i, wire in enumerate(wires):
             wire_num = i + 1
@@ -798,7 +868,7 @@ class DataConverter:
                 left_connections,
                 right_connections,
                 groups,
-                visual_numbers,
+                wire_to_coordinate,  # This is actually coordinate Y mapping
             )
             processed_wires.append(processed_wire)
 
@@ -811,13 +881,13 @@ class DataConverter:
         left_connections: Dict,
         right_connections: Dict,
         groups: Dict,
-        visual_numbers: Dict[int, int],
+        coordinate_mapping: Dict[int, int],
     ) -> List:
-        """Process a single wire for connection-based parameters using visual numbers"""
+        """Process a single wire for connection-based parameters using Y coordinates"""
         signal_name = wire.get("Signal name", "")
 
-        # Get visual numbers for current wire and targets
-        current_visual = visual_numbers.get(wire_num, wire_num)
+        # Get Y coordinate for current wire
+        current_coordinate = coordinate_mapping.get(wire_num, wire_num)
 
         # Initialize default values
         right_offset = ""
@@ -826,32 +896,41 @@ class DataConverter:
         left_group = ""
 
         # Check if this wire is a SPLICE (has wires connecting TO it)
-        is_splice_right = any(
-            target == wire_num for target in right_connections.values()
-        )
-        is_splice_left = any(target == wire_num for target in left_connections.values())
+        # A splice wire is a TARGET of connections
+        is_splice_right = False
+        for source_wire, target_wire in right_connections.items():
+            if target_wire == wire_num:
+                is_splice_right = True
+                break
 
-        # RIGHT offset (if has right connection)
+        is_splice_left = False
+        for source_wire, target_wire in left_connections.items():
+            if target_wire == wire_num:
+                is_splice_left = True
+                break
+
+        # RIGHT offset (if this wire has outgoing connection to right side)
         if wire_num in right_connections:
-            target_actual = right_connections[wire_num]
-            target_visual = visual_numbers.get(target_actual, target_actual)
-            # Calculate offset using VISUAL numbers
-            offset = target_visual - current_visual
+            target_wire_num = right_connections[wire_num]
+            target_coordinate = coordinate_mapping.get(target_wire_num, target_wire_num)
+            # Calculate offset: target Y coordinate - current Y coordinate
+            offset = target_coordinate - current_coordinate
             right_offset = str(offset)
 
-        # LEFT offset (if has left connection)
+        # LEFT offset (if this wire has outgoing connection to left side)
         if wire_num in left_connections:
-            target_actual = left_connections[wire_num]
-            target_visual = visual_numbers.get(target_actual, target_actual)
-            # Calculate offset using VISUAL numbers
-            offset = target_visual - current_visual
+            target_wire_num = left_connections[wire_num]
+            target_coordinate = coordinate_mapping.get(target_wire_num, target_wire_num)
+            # Calculate offset: target Y coordinate - current Y coordinate
+            offset = target_coordinate - current_coordinate
             left_offset = str(offset)
 
         # NEW RULE: If wire is a SPLICE (other wires connect TO it), set offset to 0
-        if is_splice_right and not right_offset:
+        # But only if it doesn't have its own outgoing connection
+        if is_splice_right and wire_num not in right_connections:
             right_offset = "0"
 
-        if is_splice_left and not left_offset:
+        if is_splice_left and wire_num not in left_connections:
             left_offset = "0"
 
         # Determine groups
@@ -859,18 +938,18 @@ class DataConverter:
             group_id = groups[wire_num]
 
             # Check connections to determine group placement
-            has_right_connection = wire_num in right_connections
-            has_left_connection = wire_num in left_connections
+            has_right_connection = wire_num in right_connections or is_splice_right
+            has_left_connection = wire_num in left_connections or is_splice_left
 
-            # If wire connects to right, group goes to right side
-            if (has_right_connection or is_splice_right) and group_id != 0:
+            # If wire has connection on right side or is splice on right, group on right side
+            if has_right_connection and group_id != 0:
                 right_group = str(group_id)
 
-            # If wire connects to left, group goes to left side
-            if (has_left_connection or is_splice_left) and group_id != 0:
+            # If wire has connection on left side or is splice on left, group on left side
+            if has_left_connection and group_id != 0:
                 left_group = str(group_id)
 
-        # Convert IN/OUT direction
+        # Convert IN/OUT direction (IN ↔ OUT)
         right_in_out = self._convert_in_out_direction(wire)
 
         # Get wire properties

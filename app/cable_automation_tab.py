@@ -1,4 +1,4 @@
-# RIGa&DeepSeek 10.12.2025
+# RIGa&DeepSeek 13.12.2025
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
