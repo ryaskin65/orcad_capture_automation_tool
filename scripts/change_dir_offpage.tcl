@@ -1,4 +1,4 @@
-# RIGa&DeepSeek 05.11.2025
+# RIGa&DeepSeek 14.12.2025
 # Replacing the direction of selected Offpage connectors in OrCAD Capture
 
 # Safe deletion procedures for C++ objects
@@ -248,9 +248,27 @@ proc changeOffPageDirections {} {
                     SetProperty {Name} $lName
                     # No text repositioning needed for this case
                     
+                } elseif {($symbolName == "OFFPAGERIGHT-R") && ($symb_mirror == 0)} {
+                    PlaceOffPage $ui_x $ui_y $pathLib "OFFPAGELEFT-R" "OFFPAGELEFT-R"
+                    MirrorHorizontal
+                    SetProperty {Name} $lName
+                    MirrorHorizontal
+                    # No text repositioning needed for this case
+                    
+                } elseif {($symbolName == "OFFPAGERIGHT-L") && ($symb_mirror == 0)} {
+                    PlaceOffPage $ui_x $ui_y $pathLib "OFFPAGELEFT-L" "OFFPAGELEFT-L"
+                    MirrorHorizontal
+                    SetProperty {Name} $lName
+                    MirrorHorizontal
+                    # No text repositioning needed for this case
+                    
                 } else {
                     SafeLog "WARNING: Unknown symbol $symbolName for OffPage $lName"
-                    continue
+                    PlaceOffPage $ui_x $ui_y $pathLib "OFFPAGELEFT-R" "OFFPAGELEFT-R"
+                    MirrorHorizontal
+                    SetProperty {Name} $lName
+                    MirrorHorizontal
+                    # No text repositioning needed for this case
                 }
                 
                 incr replaceCount

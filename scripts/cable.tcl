@@ -845,7 +845,6 @@ proc PlacePage {pageData} {
 		#
 		if {$fRC || $fLC} {set prevTypePair 0}
 		if {($WireType($i) == 1) || ($WireType($i) == 2)} {set typePair 1} else {set typePair 0}
-		if {($WireType($i) == 0) && ($prevTypePair == 1)} {incr numSpaceLines}
 		if {(!($fRC || $fLC || $fRS || $fLS)) && ($numWireTwist == 0) && ($typePair == 1)} {incr numSpaceLines}
 		if {($numWireTwist < 1) && ($typePair == 1)} {incr numWireTwist} else {set numWireTwist 0}
 		#
@@ -900,7 +899,10 @@ proc PlacePage {pageData} {
 				}
 				set arrayLineRightConnector($iRC) [expr $numLines + $numSpaceLines]
 			}
-		}
+		} else {
+			# Add an indent at the end of the twisted pair (+1), ONLY if there was no group change
+			if {($WireType($i) == 0) && ($prevTypePair == 1)} {incr numSpaceLines}
+		}			
 		# Y of wire
 		set Y [expr $StartWireY + $numLines * $StepWireY + $numSpaceLines * $StepWireY]
 		# Place left and right OffPage
