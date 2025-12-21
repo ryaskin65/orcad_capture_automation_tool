@@ -1,4 +1,4 @@
-# RIGa&DeepSeek 13.12.2025
+# RIGa&DeepSeek 21.12.2025
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
@@ -7,6 +7,7 @@ from screen_handler import ScreenHandler
 from excel_utils import ExcelUtils
 from orcad_script_runner import OrcadScriptRunner
 from data_converter import DataConverter
+from typing import List, Tuple
 
 script_name = 'cable.tcl'
 xlsx_path = ''
@@ -260,48 +261,78 @@ class CableAutomationTab:
         if not result['success']:
             self.message_logger.log_message('ERROR', f"Script execution failed: {result.get('error', 'Unknown error')}")
 
-    def validate_before_draw(self):
-        """Validate and convert cable data before running the script"""
-        try:
-            if not xlsx_path:
-                self.message_logger.log_message("ERROR", "No Excel file selected")
-                return False
+    def validate_input_file(
+        self, input_path: str, for_drawing: bool = False
+    ) -> Tuple[bool, List[str], List[str]]:
+        """
+        Common validation method for both conversion and drawing
 
-            # Perform conversion IN MEMORY without saving to file
-            success, converted_data = self._convert_in_memory(xlsx_path)
+        Args:
+            input_path: Path to Excel file
+            for_drawing: True if validating for drawing (additional checks)
 
-            if not success:
-                error_msg = "Conversion failed"
-                self.message_logger.log_message("ERROR", error_msg)
+        Returns: (is_valid, errors, warnings)
+        """
+        if not input_path:
+            return False, ["No Excel file selected"], []
 
-                from tkinter import messagebox
+        if not os.path.exists(input_path):
+            return False, [f"Excel file does not exist: {input_path}"], []
 
-                messagebox.showerror(
-                    "Validation Failed",
-                    f"Cable data conversion failed:\n\n{error_msg}\n\nPlease fix errors before running the script.",
-                )
-                return False
+        # Use converter's validation
+        return self.converter.validate_input_data(input_path)
 
-            # Store converted data for later use in draw()
-            self.converted_data = converted_data
+    def convert_file_format(self):
+        """Convert Excel file from input to output format"""
+        global xlsx_path
 
-            # Load converted data to treeview for verification
-            self._load_converted_data_to_treeview(converted_data)
+        if not xlsx_path:
+            self.message_logger.log_message("ERROR", "No Excel file selected")
+            return
 
+        # Validate using common method
+        success, errors, warnings = self.validate_input_file(
+            xlsx_path, for_drawing=False
+        )
+
+        # Log all messages
+        for error in errors:
+            self.message_logger.log_message("ERROR", error)
+        for warning in warnings:
+            self.message_logger.log_message("WARNING", warning)
+
+        if not success:
             self.message_logger.log_message(
-                "SUCCESS", f"Data converted and validated successfully."
+                "ERROR", "Validation failed - cannot convert file"
             )
+            return
 
-            return True
+        # Create output path
+        input_dir = os.path.dirname(xlsx_path)
+        input_name = os.path.splitext(os.path.basename(xlsx_path))[0]
+        output_path = os.path.join(input_dir, f"{input_name}_converted.xlsx")
 
-        except Exception as e:
-            self.message_logger.log_message("ERROR", f"Validation error: {str(e)}")
-            return False
+        # Convert file
+        success, conv_errors, conv_warnings = self.converter.convert_excel_file(
+            xlsx_path, output_path
+        )
 
-    def _convert_in_memory(self, input_path: str):
-        """Convert Excel file in memory without saving to file"""
+        # Log conversion results
+        for error in conv_errors:
+            self.message_logger.log_message("ERROR", error)
+        for warning in conv_warnings:
+            self.message_logger.log_message("WARNING", warning)
+
+        if success:
+            self.message_logger.log_message(
+                "SUCCESS", f"File converted successfully: {output_path}"
+            )
+        else:
+            self.message_logger.log_message("ERROR", "File conversion failed")
+
+    def _convert_data_for_drawing(self, input_path: str):
+        """Convert data after successful validation"""
         try:
-            # Load input workbook
             from openpyxl import load_workbook
 
             input_wb = load_workbook(input_path)
@@ -312,14 +343,12 @@ class CableAutomationTab:
             if not input_data:
                 return False, []
 
-            # Validate data structure
-            is_valid, validation_errors, validation_warnings = (
-                self.converter._validate_data_structure(input_data)
-            )
-            if not is_valid:
+            # Calculate all wire data
+            success = self.converter._calculate_all_wire_data(input_data)
+            if not success:
                 return False, []
 
-            # Convert data format and auto-process
+            # Convert data format
             success, converted_data = self.converter._convert_and_process_data(
                 input_data
             )
@@ -380,12 +409,73 @@ class CableAutomationTab:
             self.message_logger.log_message("ERROR", f"Error during drawing: {str(e)}")
             self.draw_button.config(state="normal", text="Run script")
 
+    def validate_before_draw(self):
+        """Validate cable data before running the script"""
+        try:
+            if not xlsx_path:
+                self.message_logger.log_message("ERROR", "No Excel file selected")
+                return False
+
+            # Validate using common method
+            success, errors, warnings = self.validate_input_file(
+                xlsx_path, for_drawing=True
+            )
+
+            # Log all messages
+            for error in errors:
+                self.message_logger.log_message("ERROR", error)
+            for warning in warnings:
+                self.message_logger.log_message("WARNING", warning)
+
+            if not success:
+                self.message_logger.log_message(
+                    "ERROR", "Validation failed - cannot run script"
+                )
+                return False
+
+            # Convert data for drawing
+            success, converted_data = self._convert_data_for_drawing(xlsx_path)
+
+            if not success:
+                self.message_logger.log_message(
+                    "ERROR", "Failed to convert data for drawing"
+                )
+                return False
+
+            self.converted_data = converted_data
+            self._load_converted_data_to_treeview(converted_data)
+
+            self.message_logger.log_message(
+                "SUCCESS", "Data validated successfully - ready to draw"
+            )
+            return True
+
+        except Exception as e:
+            self.message_logger.log_message("ERROR", f"Validation error: {str(e)}")
+            return False
+
+
     def convert_file_format(self):
-        """Convert Excel file from input to output format with validation and auto-processing"""
+        """Convert Excel file from input to output format"""
         global xlsx_path
 
         if not xlsx_path:
             self.message_logger.log_message("ERROR", "No Excel file selected")
+            return
+
+        # Validate using common method
+        success, errors, warnings = self.validate_input_file(xlsx_path, for_drawing=False)
+
+        # Log all messages
+        for error in errors:
+            self.message_logger.log_message("ERROR", error)
+        for warning in warnings:
+            self.message_logger.log_message("WARNING", warning)
+
+        if not success:
+            self.message_logger.log_message(
+                "ERROR", "Validation failed - cannot convert file"
+            )
             return
 
         # Create output path
@@ -393,21 +483,20 @@ class CableAutomationTab:
         input_name = os.path.splitext(os.path.basename(xlsx_path))[0]
         output_path = os.path.join(input_dir, f"{input_name}_converted.xlsx")
 
-        # Convert file with validation and auto-processing
-        success, errors, warnings = self.converter.convert_excel_file(
+        # Convert file
+        success, conv_errors, conv_warnings = self.converter.convert_excel_file(
             xlsx_path, output_path
         )
 
-        # Show results
-        summary = self.converter.get_conversion_summary()
+        # Log conversion results
+        for error in conv_errors:
+            self.message_logger.log_message("ERROR", error)
+        for warning in conv_warnings:
+            self.message_logger.log_message("WARNING", warning)
 
         if success:
-            self.message_logger.log_message("SUCCESS", f"File converted: {output_path}")
-            # Try to load converted file to see results
-            old_path = xlsx_path
-            xlsx_path = output_path
-            self.load_from_excel()
-            xlsx_path = old_path
+            self.message_logger.log_message(
+                "SUCCESS", f"File converted successfully: {output_path}"
+            )
         else:
-            error_msg = "\n".join(errors) if errors else summary
-            self.message_logger.log_message("ERROR", f"Conversion failed: {error_msg}")
+            self.message_logger.log_message("ERROR", "File conversion failed")
