@@ -1,4 +1,4 @@
-# RIGa&DeepSeek 04.11.2025
+# RIGa&AI 16.01.2026
 # Script to find and replace text for OrCAD Capture
 # Replaces specified text in selected objects
 
@@ -30,118 +30,46 @@ proc SafeDeleteObject {objVar objType} {
 }
 
 proc initObjectTypes {activePage} {
-    set lNullObj NULL
-    set lStatus [DboState]
-    
-    # Declaring all iterators in advance to guarantee cleanup
-    set offPageIter ""
-    set portIter ""
-    set lPartInstsIter ""
-    set lPropsIter ""
-    set lWiresIter ""
-    set lAliasIter ""
-    
     array set types {}
-    
+
     # OffPageConnector type (38)
-    if {[catch {
-        set offPageIter [$activePage NewOffPageConnectorsIter $lStatus]
-        set offPageInst [$offPageIter NextOffPageConnector $lStatus]
-        if {$offPageInst != $lNullObj} {
-            set types(OFFPAGE) [$offPageInst GetObjectType]
-        }
-    } err]} {
-        SafeLog "Warning: Failed to create OffPageConnectors iterator: $err"
+    if {[info exists ::DboBaseObject_OFF_PAGE_CONNECTOR]} {
+        set types(OFFPAGE) $::DboBaseObject_OFF_PAGE_CONNECTOR
     }
-    SafeDeleteIter offPageIter DboPageOffPageConnectorsIter
 
-    # Port type (36)
-    if {[catch {
-        set portIter [$activePage NewPortsIter $lStatus]
-        set portInst [$portIter NextPort $lStatus]
-        if {$portInst != $lNullObj} {
-            set types(PORT) [$portInst GetObjectType]
-        }
-    } err]} {
-        SafeLog "Warning: Failed to create Ports iterator: $err"
+    # Port type (23)
+    if {[info exists ::DboBaseObject_PORT]} {
+        set types(PORT) $::DboBaseObject_PORT
     }
-    SafeDeleteIter portIter DboPagePortsIter
 
-    # Part type (13)
-    set lInst ""
-    set lPlacedInst ""
-    if {[catch {
-        set lPartInstsIter [$activePage NewPartInstsIter $lStatus]
-        set lInst [$lPartInstsIter NextPartInst $lStatus]
-        if {$lInst != $lNullObj} {
-            set lPlacedInst [DboPartInstToDboPlacedInst $lInst]
-            if {$lPlacedInst != $lNullObj} {
-                set types(PART) [$lPlacedInst GetObjectType]
-            }
-        }
-    } err]} {
-        SafeLog "Warning: Failed to process PartInsts: $err"
+    # Part type (11)
+    if {[info exists ::DboBaseObject_PART_INSTANCE]} {
+        set types(PART) $::DboBaseObject_PART_INSTANCE
     }
-    SafeDeleteIter lPartInstsIter DboPagePartInstsIter
 
     # DisplayProperty type (39)
-    if {![info exists types(DISPLAY)]} {
-        if {[info exists offPageInst] && $offPageInst != $lNullObj} {
-            if {[catch {
-                set lPropsIter [$offPageInst NewDisplayPropsIter $lStatus]
-                set lDProp [$lPropsIter NextProp $lStatus]
-                if {$lDProp != $lNullObj} { 
-                    set types(DISPLAY) [$lDProp GetObjectType]
-                }
-            } err]} {
-                SafeLog "Warning: Failed to process DisplayProps: $err"
-            }
-            SafeDeleteIter lPropsIter DboDisplayPropsIter
-        }
+    if {[info exists ::DboBaseObject_DISPLAY_PROP]} {
+        set types(DISPLAY) $::DboBaseObject_DISPLAY_PROP
     }
 
     # Wire Scalar type (20) and Wire Alias type (49)
-    set wireScalarFound false
-    set wireAliasFound false
-    
-    if {[catch {
-        set lWiresIter [$activePage NewWiresIter $lStatus]
-        set lWire [$lWiresIter NextWire $lStatus]
-        
-        while {$lWire != $lNullObj && (!$wireScalarFound || !$wireAliasFound)} {
-            if {[$lWire GetObjectType] == $::DboBaseObject_WIRE_SCALAR} {
-                # Store Wire Scalar type (20) only once
-                if {!$wireScalarFound} {
-                    set types(WIRE_SCALAR) [$lWire GetObjectType]
-                    set wireScalarFound true
-                }
-                
-                # Get Wire Alias type (49) from first alias
-                if {!$wireAliasFound} {
-                    set lAliasIter ""
-                    if {[catch {
-                        set lAliasIter [$lWire NewAliasesIter $lStatus]
-                        set lAlias [$lAliasIter NextAlias $lStatus]
-                        if {$lAlias != $lNullObj} {
-                            set types(WIRE_ALIAS) [$lAlias GetObjectType]
-                            set wireAliasFound true
-                        }
-                    } err]} {
-                        SafeLog "Warning: Failed to process Wire Aliases: $err"
-                    }
-                    SafeDeleteIter lAliasIter DboWireAliasesIter
-                }
-            }
-            set lWire [$lWiresIter NextWire $lStatus]
-        }
-    } err]} {
-        SafeLog "Warning: Failed to process Wires: $err"
+    if {[info exists ::DboBaseObject_WIRE_SCALAR]} {
+        set types(WIRE_SCALAR) $::DboBaseObject_WIRE_SCALAR
     }
-    SafeDeleteIter lWiresIter DboPageWiresIter
+
+    # Wire Wire Alias type (49)
+    if {[info exists ::DboBaseObject_ALIAS]} {
+        set types(WIRE_ALIAS) $::DboBaseObject_ALIAS
+    }
 
     # Graphic Comment Text type (61)
     if {[info exists ::DboBaseObject_GRAPHIC_COMMENTTEXT_INST]} {
         set types(COMMENT_TEXT) $::DboBaseObject_GRAPHIC_COMMENTTEXT_INST
+    }
+
+    # TITLEBLOCK (65)
+    if {[info exists ::DboBaseObject_TITLEBLOCK_INSTANCE]} {
+        set types(TITLEBLOCK) $::DboBaseObject_TITLEBLOCK_INSTANCE
     }
 
     return [array get types]
@@ -149,10 +77,10 @@ proc initObjectTypes {activePage} {
 
 proc updateObjectBoundingBox {obj objType objectTypes activePage} {
     set lNullObj NULL
-    
+
     # Convert objectTypes list back to array for easier access
     array set typesArr $objectTypes
-    
+
     if {[info exists typesArr(COMMENT_TEXT)] && $objType == $typesArr(COMMENT_TEXT)} {
         set textInst ""
         set textDef ""
@@ -193,7 +121,7 @@ proc updateObjectBoundingBox {obj objType objectTypes activePage} {
         SafeLog "Warning: Unknown object type for bounding box update: $objType"
         catch {$obj MarkModified}
     }
-    
+
     $activePage MarkModified
     catch {array unset typesArr}
     return true
@@ -215,7 +143,7 @@ proc replaceTextInObject {obj objectTypes oldText newText activePage} {
     array set typesArr $objectTypes
     set objType [$obj GetObjectType]
     set objTypeName [getObjectTypeName $objType $objectTypes]
-    
+
     # Handle different object types with text replacement
     if {[info exists typesArr(COMMENT_TEXT)] && $objType == $typesArr(COMMENT_TEXT)} {
         set textCStr ""
@@ -223,12 +151,12 @@ proc replaceTextInObject {obj objectTypes oldText newText activePage} {
         if {[catch {
             set textInst [DboGraphicInstanceToDboGraphicCommentTextInst $obj]
             set textDef [$textInst GetDboCommentText]
-            
+
             if {$textDef != $lNullObj} {
                 set textCStr [DboTclHelper_sMakeCString]
                 $textDef GetText $textCStr
                 set currentText [DboTclHelper_sGetConstCharPtr $textCStr]
-                
+
                 if {[string match "*${oldText}*" $currentText]} {
                     set newTextValue [string map [list $oldText $newText] $currentText]
                     set newTextCStr [DboTclHelper_sMakeCString $newTextValue]
@@ -243,7 +171,7 @@ proc replaceTextInObject {obj objectTypes oldText newText activePage} {
         }
         SafeDeleteCString textCStr
         SafeDeleteCString newTextCStr
-        
+
     } elseif {[info exists typesArr(PORT)] && $objType == $typesArr(PORT)} {
         set nameCStr ""
         set newTextCStr ""
@@ -252,7 +180,7 @@ proc replaceTextInObject {obj objectTypes oldText newText activePage} {
             set nameCStr [DboTclHelper_sMakeCString]
             $portInst GetName $nameCStr
             set currentText [DboTclHelper_sGetConstCharPtr $nameCStr]
-            
+
             if {[string match "*${oldText}*" $currentText]} {
                 set newTextValue [string map [list $oldText $newText] $currentText]
                 set newTextCStr [DboTclHelper_sMakeCString $newTextValue]
@@ -266,21 +194,21 @@ proc replaceTextInObject {obj objectTypes oldText newText activePage} {
         }
         SafeDeleteCString nameCStr
         SafeDeleteCString newTextCStr
-        
+
     } elseif {[info exists typesArr(PART)] && $objType == $typesArr(PART)} {
         set refDesCStr ""
         set valueCStr ""
         set newRefDesCStr ""
         set newValueCStr ""
         set replaced false
-        
+
         if {[catch {
             set partInst $obj
             # Check RefDes
             set refDesCStr [DboTclHelper_sMakeCString]
             $partInst GetReferenceDesignator $refDesCStr
             set currentRefDes [DboTclHelper_sGetConstCharPtr $refDesCStr]
-            
+
             if {[string match "*${oldText}*" $currentRefDes]} {
                 set newRefDes [string map [list $oldText $newText] $currentRefDes]
                 set newRefDesCStr [DboTclHelper_sMakeCString $newRefDes]
@@ -289,12 +217,12 @@ proc replaceTextInObject {obj objectTypes oldText newText activePage} {
                 SafeLog "$objTypeName RefDes replaced: '$currentRefDes' -> '$newRefDes'"
                 set replaced true
             }
-            
+
             # Check Value
             set valueCStr [DboTclHelper_sMakeCString]
             $partInst GetPartValue $valueCStr
             set currentValue [DboTclHelper_sGetConstCharPtr $valueCStr]
-            
+
             if {[string match "*${oldText}*" $currentValue]} {
                 set newValue [string map [list $oldText $newText] $currentValue]
                 set newValueCStr [DboTclHelper_sMakeCString $newValue]
@@ -311,7 +239,7 @@ proc replaceTextInObject {obj objectTypes oldText newText activePage} {
         SafeDeleteCString valueCStr
         SafeDeleteCString newRefDesCStr
         SafeDeleteCString newValueCStr
-        
+
     } elseif {[info exists typesArr(OFFPAGE)] && $objType == $typesArr(OFFPAGE)} {
         set nameCStr ""
         set newTextCStr ""
@@ -320,7 +248,7 @@ proc replaceTextInObject {obj objectTypes oldText newText activePage} {
             set nameCStr [DboTclHelper_sMakeCString]
             $offPageInst GetName $nameCStr
             set currentText [DboTclHelper_sGetConstCharPtr $nameCStr]
-            
+
             if {[string match "*${oldText}*" $currentText]} {
                 set newTextValue [string map [list $oldText $newText] $currentText]
                 set newTextCStr [DboTclHelper_sMakeCString $newTextValue]
@@ -334,7 +262,7 @@ proc replaceTextInObject {obj objectTypes oldText newText activePage} {
         }
         SafeDeleteCString nameCStr
         SafeDeleteCString newTextCStr
-        
+
     } elseif {[info exists typesArr(DISPLAY)] && $objType == $typesArr(DISPLAY)} {
         set nameCStr ""
         set newTextCStr ""
@@ -344,7 +272,7 @@ proc replaceTextInObject {obj objectTypes oldText newText activePage} {
             set owner [$displayInst GetParentObj]
             $displayInst GetActualValueString $owner $nameCStr
             set currentText [DboTclHelper_sGetConstCharPtr $nameCStr]
-            
+
             if {[string match "*${oldText}*" $currentText]} {
                 set newTextValue [string map [list $oldText $newText] $currentText]
                 set newTextCStr [DboTclHelper_sMakeCString $newTextValue]
@@ -358,14 +286,14 @@ proc replaceTextInObject {obj objectTypes oldText newText activePage} {
         }
         SafeDeleteCString nameCStr
         SafeDeleteCString newTextCStr
-        
+
     } elseif {[info exists typesArr(WIRE_ALIAS)] && $objType == $typesArr(WIRE_ALIAS)} {
         set nameCStr ""
         set newTextCStr ""
         if {[catch {
             set aliasInst $obj
             set nameCStr [DboTclHelper_sMakeCString]
-            
+
             if {[catch {$aliasInst GetName $nameCStr} err]} {
                 SafeLog "Error: Failed to get Name for $objTypeName: $err"
             } else {
@@ -373,7 +301,7 @@ proc replaceTextInObject {obj objectTypes oldText newText activePage} {
                 if {[string match "*${oldText}*" $currentText]} {
                     set newTextValue [string map [list $oldText $newText] $currentText]
                     set newTextCStr [DboTclHelper_sMakeCString $newTextValue]
-                    
+
                     if {[catch {$aliasInst SetName $newTextCStr} err]} {
                         SafeLog "Error: Failed to set Name for $objTypeName: $err"
                     } else {
@@ -388,22 +316,22 @@ proc replaceTextInObject {obj objectTypes oldText newText activePage} {
         }
         SafeDeleteCString nameCStr
         SafeDeleteCString newTextCStr
-        
-    } elseif {$objType == $::DboBaseObject_WIRE_SCALAR} {
+
+    } elseif {[info exists typesArr(WIRE_SCALAR)] && $objType == $typesArr(WIRE_SCALAR)} {
         set lStatus [DboState]
         set lAliasIter ""
         set replaced false
-        
+
         if {[catch {
             set lAliasIter [$obj NewAliasesIter $lStatus]
             set lAlias [$lAliasIter NextAlias $lStatus]
-            
+
             while {$lAlias != $lNullObj} {
                 set nameCStr ""
                 set newTextCStr ""
                 if {[catch {
                     set nameCStr [DboTclHelper_sMakeCString]
-                    
+
                     if {[catch {$lAlias GetName $nameCStr} err]} {
                         SafeLog "Error: Failed to get Name for Wire Alias: $err"
                     } else {
@@ -411,7 +339,7 @@ proc replaceTextInObject {obj objectTypes oldText newText activePage} {
                         if {[string match "*${oldText}*" $currentText]} {
                             set newTextValue [string map [list $oldText $newText] $currentText]
                             set newTextCStr [DboTclHelper_sMakeCString $newTextValue]
-                            
+
                             if {[catch {$lAlias SetName $newTextCStr} err]} {
                                 SafeLog "Error: Failed to set Name for Alias: $err"
                             } else {
@@ -435,7 +363,7 @@ proc replaceTextInObject {obj objectTypes oldText newText activePage} {
         }
         SafeDeleteIter lAliasIter DboWireAliasesIter
     }
-    
+
     catch {array unset typesArr}
     return $result
 }
@@ -460,7 +388,7 @@ proc SafeLog {message} {
     set timestamp [clock format [clock seconds] -format "%Y.%m.%d %H:%M:%S"]
     set logEntry "$timestamp - $message"
     # Log to OrCAD console
-	puts $message
+    puts $message
     # Log to file safely
     catch {
         set logPath [file join $scriptDir "script_safe.log"]
@@ -498,13 +426,13 @@ proc replaceSelectedTexts {oldText newText} {
 
     # Initialize object types
     set objectTypes [initObjectTypes $activePage]
-    
+
     # Check if any types were found
     if {[llength $objectTypes] == 0} {
         SafeLog "Error: No object types could be determined"
         return
     }
-    
+
     # Replacement counter
     set replaceCount 0
 
@@ -514,7 +442,7 @@ proc replaceSelectedTexts {oldText newText} {
             incr replaceCount
         }
     }
-    
+
     # Print summary
     if {$replaceCount > 0} {
         SafeLog "Total replacements made: $replaceCount"
@@ -526,8 +454,8 @@ proc replaceSelectedTexts {oldText newText} {
 }
 
 if {[info exists ::find_text] && [info exists ::replace_text]} {
-	# Get the directory where the script is located
-	set scriptDir [file dirname [info script]]
+    # Get the directory where the script is located
+    set scriptDir [file dirname [info script]]
     replaceSelectedTexts $::find_text $::replace_text
     set scriptDir ""
 } else {

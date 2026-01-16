@@ -1,4 +1,4 @@
-# RIGa&DeepSeek 21.12.2025
+# RIGa&DeepSeek 16.01.2026
 # pip install pyautogui pywin32 openpyxl
 import tkinter as tk
 from tkinter import ttk
@@ -20,7 +20,7 @@ except ImportError as e:
 class MainApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("OrCAD Capture Cable Automation Tool, RIGa&DeepSeek 21.12.2025")
+        self.root.title("OrCAD Capture Automation Tool, RIGa&AI 16.01.2026")
         self.root.geometry("800x600")
 
         # Global flag for non-English layout
@@ -68,7 +68,7 @@ class MainApp:
             self.notebook.add(
                 self.find_and_replace_tab.frame, text=" Find & replace text "
             )
-            self.notebook.add(self.offpage_tab.frame, text=" Connectors ")
+            self.notebook.add(self.offpage_tab.frame, text=" Connectors & Ports ")
             self.notebook.add(self.copy_xy_text_tab.frame, text=" Copy X, Y, Text ")
             self.notebook.add(self.copy_text_tab.frame, text=" Copy Text ")
         else:

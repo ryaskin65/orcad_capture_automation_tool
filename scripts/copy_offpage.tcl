@@ -1,7 +1,7 @@
-# RIGa&Grok 03.11.2025
-# Script to export off-page connector coordinates and names to CSV
+# RIGa&AI 16.01.2026
+# Script to export off-page connector page, coordinates and names to CSV
 # Groups connectors by X (delta <= 50), sorts within group by Y
-# Output: X0,Y0,Name0,,X1,Y1,Name1,,... with empty columns between groups
+# Output: Page,X0,Y0,Name0,,X1,Y1,Name1,,... with empty columns between groups
 
 set DELTA_X 50
 
@@ -9,10 +9,10 @@ set DELTA_X 50
 proc compareCoordinates {a b} {
     set aX [lindex $a 0]
     set bX [lindex $b 0]
-    
+
     if {$aX < $bX} { return -1 }
     if {$aX > $bX} { return 1 }
-    
+
     set aY [lindex $a 1]
     set bY [lindex $b 1]
     if {$aY < $bY} { return -1 }
@@ -53,7 +53,7 @@ proc collectOffPageData {lPage lStatus} {
         lappend offPageDataList [list $tX $tY $name]
         set lOffPage [$lOffPagesIter NextOffPageConnector $lStatus]
     }
-    
+
     # Always delete iterator to prevent memory leak
     catch { delete_DboPageOffPageConnectorsIter $lOffPagesIter }
     return $offPageDataList
@@ -65,16 +65,16 @@ proc getOffPageAbsoluteCoords {lOffPage lStatus} {
     set lUpperLeft NULL
     set lLocation NULL
     set result {0 0}
-        
+
     if {[catch {
         set lUpperLeft [DboTclHelper_sGetCRectTopLeft $lRect]
         set lrelX [DboTclHelper_sGetCPointX $lUpperLeft]
         set lrelY [DboTclHelper_sGetCPointY $lUpperLeft]
-        
+
         set lLocation [$lOffPage GetLocation $lStatus]
         set X [DboTclHelper_sGetCPointX $lLocation]
         set Y [DboTclHelper_sGetCPointY $lLocation]
-        
+
         set result [list [expr {$X + $lrelX}] [expr {$Y + $lrelY}]]
     } err]} {
         SafeLog "ERROR: Failed to get absolute coordinates: $err"
@@ -83,7 +83,7 @@ proc getOffPageAbsoluteCoords {lOffPage lStatus} {
     # Clean up C++ objects even if error occurred
     catch { DboTclHelper_sDeleteCPoint $lUpperLeft }
     catch { DboTclHelper_sDeleteCPoint $lLocation }
-    catch { DboTclHelper_sDeleteCRect $lRect }    
+    catch { DboTclHelper_sDeleteCRect $lRect }
     return $result
 }
 
@@ -91,14 +91,14 @@ proc getOffPageAbsoluteCoords {lOffPage lStatus} {
 proc getOffPageName {lOffPage} {
     set nameCStr [DboTclHelper_sMakeCString]
     set result ""
-    
+
     if {[catch {
         $lOffPage GetName $nameCStr
         set result [DboTclHelper_sGetConstCharPtr $nameCStr]
     } err]} {
         SafeLog "ERROR in getOffPageName: $err"
     }
-    
+
     catch { DboTclHelper_sDeleteCString $nameCStr }
     return $result
 }
@@ -109,12 +109,12 @@ proc groupAndSortByXCoordinate {sortedData maxXDifference} {
     set groups {}
     set currentGroup {}
     set lastX -10000
-    
+
     foreach item $sortedData {
         set currentX [lindex $item 0]
-        
+
         # Start new group if X difference exceeds threshold
-        if {[llength $currentGroup] == 0 || ($currentX - $lastX) <= $maxXDifference} {
+        if {[llength $currentGroup] == 0 || abs($currentX - $lastX) <= $maxXDifference} {
             lappend currentGroup $item
         } else {
             set sortedGroup [lsort -command compareByY $currentGroup]
@@ -123,31 +123,36 @@ proc groupAndSortByXCoordinate {sortedData maxXDifference} {
         }
         set lastX $currentX
     }
-    
+
     # Add the final group
     if {[llength $currentGroup] > 0} {
         set sortedGroup [lsort -command compareByY $currentGroup]
         lappend groups $sortedGroup
     }
-    
-    SafeLog "Created [llength $groups] groups, each sorted by Y"
+
+    SafeLog "Created [llength $groups] groups"
     return $groups
 }
 
 # Export grouped data to CSV with empty columns between groups
-proc exportToCsv {csvFile groups} {
+proc exportToCsv {csvFile groups pName} {
     # Open file safely
-    if {[catch { set outFile [open $csvFile w] } err]} {
+    if {[catch { set outFile [open $csvFile a] } err]} {
         SafeLog "ERROR: Cannot open CSV file for writing: $csvFile - $err"
         return
     }
-    
+
+    # Write page name
+    if {$pName ne "" && [string length $pName] > 0} {
+        puts $outFile "\n>>> PAGE: $pName\n"
+    }
+
     # Build header: X0,Y0,Name0,,X1,Y1,Name1,,...
     set header ""
     for {set i 0} {$i < [llength $groups]} {incr i} {
         append header "X$i,Y$i,Name$i,,"
     }
-    
+
     # Find maximum number of rows in any group
     set maxItems 0
     foreach group $groups {
@@ -155,11 +160,11 @@ proc exportToCsv {csvFile groups} {
             set maxItems [llength $group]
         }
     }
-    
+
     # Write CSV safely
     if {[catch {
         puts $outFile [string trimright $header ","]
-        
+
         for {set rowIndex 0} {$rowIndex < $maxItems} {incr rowIndex} {
             set row ""
             foreach group $groups {
@@ -177,7 +182,7 @@ proc exportToCsv {csvFile groups} {
         SafeLog "ERROR during CSV write: $err"
         catch { close $outFile }
     } else {
-        SafeLog "CSV exported: [llength $groups] groups, max $maxItems rows"
+        SafeLog "CSV exported: [llength $groups] groups, $maxItems rows"
     }
 }
 
@@ -202,43 +207,109 @@ proc SafeLog {message} {
     }
 }
 
-# Main export function
-proc exportActivePageOffPages {csvFile} {
+# Main export function for single page (заменяем exportActivePageOffPages)
+proc processSinglePage {lPage csvFile lStatus pName} {
     global DELTA_X
+
+    # Collect data
+    set offPageDataList [collectOffPageData $lPage $lStatus]
+    if {[llength $offPageDataList] == 0} {
+        SafeLog "No off-page connectors found on page $pName"
+        return
+    }
+
+    # Sort, group, export
+    set sortedData [lsort -command compareCoordinates $offPageDataList]
+    set groupedData [groupAndSortByXCoordinate $sortedData $DELTA_X]
+    exportToCsv $csvFile $groupedData $pName
+}
+
+# Get page name
+proc getPageName {lPage} {
+    set pNameStr [DboTclHelper_sMakeCString]
+    set result ""
+    if {[catch {
+        $lPage GetName $pNameStr
+        set result [DboTclHelper_sGetConstCharPtr $pNameStr]
+    } err]} {
+        SafeLog "ERROR getting page name: $err"
+    }
+    catch { DboTclHelper_sDeleteCString $pNameStr }
+    return $result
+}
+
+# Entry Point update
+if {![info exists ::path_to_csv_file]} {
+    SafeLog "ERROR: Global variable ::path_to_csv_file not set"
+} else {
+    set csvFile $::path_to_csv_file
+    set scriptDir [file dirname [info script]]
+
+    # Delete the file if it already exists to start fresh
+    if {[file exists $csvFile]} {
+        if {[catch {file delete -force $csvFile} err]} {
+            SafeLog "WARNING: Could not delete file $csvFile: $err"
+        }
+    }
     SafeLog "Script started"
 
     set lSession $::DboSession_s_pDboSession
     DboSession -this $lSession
     set lStatus [DboState]
     set lNullObj NULL
-    
-    # Get active page
-    set lPage [GetActivePage]
-    if {$lPage == $lNullObj} {
-        SafeLog "ERROR: No active page found!"
-        return
-    }
-    
-    # Collect data
-    set offPageDataList [collectOffPageData $lPage $lStatus]
-    if {[llength $offPageDataList] == 0} {
-        SafeLog "No off-page connectors found on the active page"
-        return
-    }
-    
-    # Sort, group, export
-    set sortedData [lsort -command compareCoordinates $offPageDataList]
-    set groupedData [groupAndSortByXCoordinate $sortedData $DELTA_X]
-    exportToCsv $csvFile $groupedData
-    
-    SafeLog "Export completed: [llength $offPageDataList] connectors → $csvFile"
-    SafeLog "Script done!"
-}
 
-# Entry point
-if {[info exists ::path_to_csv_file]} {
-    set scriptDir [file dirname [info script]]
-    exportActivePageOffPages $::path_to_csv_file
-} else {
-    SafeLog "ERROR: Global variable ::path_to_csv_file not set"
+    if {[info exists ::EXPORT_SCOPE] && $::EXPORT_SCOPE == "ALL"} {
+
+        set lDesign [$lSession GetActiveDesign]
+
+        # Use Views iterator for this version (Type 9 = Schematic)
+        set lViewsIter [$lDesign NewViewsIter $lStatus]
+        set lView [$lViewsIter NextView $lStatus]
+
+        while {$lView != $lNullObj} {
+            # Verify if it is a Schematic (Type 9) before processing
+            if {[$lView GetObjectType] == $::DboBaseObject_SCHEMATIC} {
+
+                # TYPE CASTING: convert View to Schematic to access pages
+                set lSchematic [DboViewToDboSchematic $lView]
+
+                set lPageIter [$lSchematic NewPagesIter $lStatus]
+                set lPage [$lPageIter NextPage $lStatus]
+
+                while {$lPage != $lNullObj} {
+
+                    set pName [getPageName $lPage]
+                    SafeLog ">>> PAGE: $pName"
+
+                    # Process page data
+                    processSinglePage $lPage $csvFile $lStatus $pName
+
+                    set lPage [$lPageIter NextPage $lStatus]
+                }
+
+                # Clean up pages iterator
+                delete_DboSchematicPagesIter $lPageIter
+            }
+
+            # Move to the next schematic (View)
+            set lView [$lViewsIter NextView $lStatus]
+        }
+
+        # Clean up schematics iterator
+        delete_DboLibViewsIter $lViewsIter
+
+    } elseif {[info exists ::EXPORT_SCOPE] && $::EXPORT_SCOPE == "PAGE"} {
+
+        # Get active page
+        set lPage [GetActivePage]
+        if {$lPage == $lNullObj} {
+            SafeLog "ERROR: No active page found!"
+        } else {
+            set pName [getPageName $lPage]
+            SafeLog ">>> PAGE: $pName"
+            processSinglePage $lPage $csvFile $lStatus $pName
+        }
+    }
+    SafeLog "Export completed to $csvFile"
+    SafeLog "Script done!"
 }
