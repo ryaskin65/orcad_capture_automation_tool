@@ -2,23 +2,28 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
-import sys
 from screen_handler import ScreenHandler
 from excel_utils import ExcelUtils
 from orcad_script_runner import OrcadScriptRunner
 from data_converter import DataConverter
+from base_tab import BaseTab
+from cable_page import select_page_rows
+from constants import ALL_PAGES, PAGE_DIRECTIVE
 from typing import List, Tuple
 
 script_name = 'cable.tcl'
-xlsx_path = ''
 
-class CableAutomationTab:
+
+class CableAutomationTab(BaseTab):
     def __init__(self, notebook, message_logger):
-        self.message_logger = message_logger
+        super().__init__(notebook, message_logger)
+        self.xlsx_path = ''
         self.excel_utils = ExcelUtils(message_logger)
-        self.frame = ttk.Frame(notebook)
-        #
         self.converter = DataConverter(message_logger)
+
+        # Cached full row set from the last loaded workbook (page filtering
+        # works on this snapshot instead of re-reading the file from disk).
+        self._all_rows = []
 
         # Initialize handlers
         self.screen_handler = ScreenHandler(self.message_logger)
@@ -57,11 +62,11 @@ class CableAutomationTab:
 
         # Page selection
         ttk.Label(control_frame, text="Page:").grid(row=0, column=0, sticky="e", padx=(0, 2))
-        self.page_var = tk.StringVar(value="all")
+        self.page_var = tk.StringVar(value=ALL_PAGES)
         self.page_combobox = ttk.Combobox(
             control_frame,
             textvariable=self.page_var,
-            values=["all"],
+            values=[ALL_PAGES],
             state="readonly",
             width=elem_width
         )
@@ -78,8 +83,7 @@ class CableAutomationTab:
                                       command=self.draw, width=elem_width)
         self.draw_button.grid(row=0, column=4, padx=(0, 5), sticky="e")
 
-        # def add_conversion_buttons(self):
-        """Add conversion buttons to control panel"""
+        # Conversion button
         ttk.Button(
             control_frame,
             text="Convert Format",
@@ -92,91 +96,35 @@ class CableAutomationTab:
         scrollbar.grid(row=0, column=2, sticky="ns")
         self.tree.configure(yscrollcommand=scrollbar.set)
 
-        self.current_page = "all"
+        self.current_page = ALL_PAGES
         self.page_var.trace_add('write', self._on_page_selection_change)
 
-    def get_app_root_dir(self):
-        """Get application root directory"""
-        if getattr(sys, 'frozen', False):
-            return os.path.dirname(sys.executable)
-        else:
-            return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-    def get_scripts_dir(self):
-        """Get path to scripts directory"""
-        return os.path.join(self.get_app_root_dir(), "scripts")
-
-    def get_data_dir(self):
-        """Get path to data directory"""
-        return os.path.join(self.get_app_root_dir(), "data")
+    def _populate_tree(self, rows):
+        """Replace all rows in the tree with the given rows (no disk read)."""
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        for row in rows:
+            self.tree.insert("", "end", values=list(row))
 
     def _on_page_selection_change(self, *args):
         selected_page = self.page_var.get()
         if selected_page == self.current_page:
             return
 
-        self.load_from_excel()
-        if selected_page != "all":
+        # Rebuild from the in-memory snapshot instead of re-reading the file.
+        self._populate_tree(self._all_rows)
+        if selected_page != ALL_PAGES:
             self._filter_by_page(selected_page)
 
-        self.page_var.set(selected_page)
         self.current_page = selected_page
 
     def get_page_data(self, page_name: str) -> list:
-        data = []
-        collect_page = False
-        page_data = False
-        empty_row_added = False
-        directive = ''
-        value_directive = ''
-
-        for item in self.tree.get_children():
-            row = list(self.tree.item(item, 'values'))
-            if not row or not any(cell and str(cell).strip() for cell in row):
-                empty_row = True
-                if page_data:
-                    page_data = False
-                    if collect_page:
-                        break
-            else:
-                empty_row = False
-
-            if not page_data and row[0]:
-                directive = str(row[0]).strip().upper()
-                if len(row) > 1:
-                    value_directive = str(row[1]).strip()
-                else:
-                    value_directive = ''
-                if directive == "PAGE":
-                    page_data = True
-                    collect_page = (value_directive == page_name)
-
-            def find_directive():
-                for i, arr_row in enumerate(data):
-                    if arr_row and len(arr_row) > 0:
-                        arr_directive = str(arr_row[0]).strip().upper()
-                        if arr_directive == "PAGE":
-                            return False
-                        if arr_directive == directive:
-                            data[i][1] = value_directive
-                            return True
-                return False
-
-            if collect_page:
-                data.append(row)
-                empty_row_added = False
-            elif not page_data:
-                if not empty_row:
-                    empty_row = find_directive()
-                    if not empty_row:
-                        data.append(row)
-                    elif not empty_row_added:
-                        data.append(row)
-                if empty_row:
-                    empty_row_added = True
-                else:
-                    empty_row_added = False
-
+        """Rows to display for a single selected page (see cable_page)."""
+        rows = [
+            list(self.tree.item(item, 'values'))
+            for item in self.tree.get_children()
+        ]
+        data = select_page_rows(rows, page_name)
         if not data:
             self.message_logger.log_message('ERROR', f"No data found for page '{page_name}'")
 
@@ -197,7 +145,7 @@ class CableAutomationTab:
         pages = []
         for item in self.tree.get_children():
             row = list(self.tree.item(item, 'values'))
-            if row and len(row) > 0 and str(row[0]).strip().upper() == "PAGE":
+            if row and len(row) > 0 and str(row[0]).strip().upper() == PAGE_DIRECTIVE:
                 if len(row) > 1 and row[1]:
                     page_name = str(row[1]).strip()
                     if page_name not in pages:
@@ -206,53 +154,54 @@ class CableAutomationTab:
 
     def edit_in_excel(self):
         """Edit data in Excel file by opening it in Microsoft Excel"""
-        if not xlsx_path:
+        if not self.xlsx_path:
             self.message_logger.log_message('ERROR', "Excel path not selected")
             return
 
-        if not os.path.exists(xlsx_path):
-            self.message_logger.log_message('ERROR', f"Excel file does not exist at: {xlsx_path}")
+        if not os.path.exists(self.xlsx_path):
+            self.message_logger.log_message('ERROR', f"Excel file does not exist at: {self.xlsx_path}")
             return
 
-        self.excel_utils.open_or_create_xlsx(xlsx_path)
-        try:
-            os.startfile(xlsx_path)
-            self.message_logger.log_message('SUCCESS', f"Opened Excel file: {xlsx_path}")
-        except Exception as e:
-            self.message_logger.log_message('ERROR', f"Failed to open Excel file: {str(e)}")
+        # open_or_create_xlsx already opens the file and logs the result
+        self.excel_utils.open_or_create_xlsx(self.xlsx_path)
 
     def load_from_excel(self):
         """Load data from Excel file into treeview and extract pages"""
-        if not xlsx_path:
+        if not self.xlsx_path:
             self.message_logger.log_message('ERROR', "Excel path not selected")
             return
 
-        if not os.path.exists(xlsx_path):
+        if not os.path.exists(self.xlsx_path):
             self.message_logger.log_message('ERROR', "Excel file does not exist")
             return
 
         success = self.excel_utils.load_excel_to_treeview(
-            excel_path=xlsx_path,
+            excel_path=self.xlsx_path,
             tree=self.tree
         )
 
         if success:
+            # Snapshot the full row set so page filtering never re-reads disk.
+            self._all_rows = [
+                list(self.tree.item(item, 'values'))
+                for item in self.tree.get_children()
+            ]
             pages = self._extract_pages_from_treeview()
-            self.page_combobox['values'] = ["all"] + pages
-            self.current_page = "all"
-            self.page_var.set("all")
-            self.message_logger.log_message('SUCCESS', f"Loaded data from {xlsx_path}")
+            self.page_combobox['values'] = [ALL_PAGES] + pages
+            self.current_page = ALL_PAGES
+            self.page_var.set(ALL_PAGES)
+            self.message_logger.log_message('SUCCESS', f"Loaded data from {self.xlsx_path}")
 
     def select_and_load_from_excel(self):
-        global xlsx_path
         data_dir = self.get_data_dir()
         initial_dir = data_dir if os.path.exists(data_dir) else None
 
-        xlsx_path = filedialog.askopenfilename(
+        selected = filedialog.askopenfilename(
             filetypes=[("Excel files", "*.xlsx *.xls")],
             initialdir=initial_dir
         )
-        if xlsx_path:
+        if selected:
+            self.xlsx_path = selected
             self.load_from_excel()
 
     def _on_execution_complete(self, result):
@@ -284,15 +233,13 @@ class CableAutomationTab:
 
     def convert_file_format(self):
         """Convert Excel file from input to output format"""
-        global xlsx_path
-
-        if not xlsx_path:
+        if not self.xlsx_path:
             self.message_logger.log_message("ERROR", "No Excel file selected")
             return
 
         # Validate using common method
         success, errors, warnings = self.validate_input_file(
-            xlsx_path, for_drawing=False
+            self.xlsx_path, for_drawing=False
         )
 
         # Log all messages
@@ -308,13 +255,13 @@ class CableAutomationTab:
             return
 
         # Create output path
-        input_dir = os.path.dirname(xlsx_path)
-        input_name = os.path.splitext(os.path.basename(xlsx_path))[0]
+        input_dir = os.path.dirname(self.xlsx_path)
+        input_name = os.path.splitext(os.path.basename(self.xlsx_path))[0]
         output_path = os.path.join(input_dir, f"{input_name}_converted.xlsx")
 
         # Convert file
         success, conv_errors, conv_warnings = self.converter.convert_excel_file(
-            xlsx_path, output_path
+            self.xlsx_path, output_path
         )
 
         # Log conversion results
@@ -412,13 +359,13 @@ class CableAutomationTab:
     def validate_before_draw(self):
         """Validate cable data before running the script"""
         try:
-            if not xlsx_path:
+            if not self.xlsx_path:
                 self.message_logger.log_message("ERROR", "No Excel file selected")
                 return False
 
             # Validate using common method
             success, errors, warnings = self.validate_input_file(
-                xlsx_path, for_drawing=True
+                self.xlsx_path, for_drawing=True
             )
 
             # Log all messages
@@ -434,7 +381,7 @@ class CableAutomationTab:
                 return False
 
             # Convert data for drawing
-            success, converted_data = self._convert_data_for_drawing(xlsx_path)
+            success, converted_data = self._convert_data_for_drawing(self.xlsx_path)
 
             if not success:
                 self.message_logger.log_message(
@@ -454,49 +401,3 @@ class CableAutomationTab:
             self.message_logger.log_message("ERROR", f"Validation error: {str(e)}")
             return False
 
-
-    def convert_file_format(self):
-        """Convert Excel file from input to output format"""
-        global xlsx_path
-
-        if not xlsx_path:
-            self.message_logger.log_message("ERROR", "No Excel file selected")
-            return
-
-        # Validate using common method
-        success, errors, warnings = self.validate_input_file(xlsx_path, for_drawing=False)
-
-        # Log all messages
-        for error in errors:
-            self.message_logger.log_message("ERROR", error)
-        for warning in warnings:
-            self.message_logger.log_message("WARNING", warning)
-
-        if not success:
-            self.message_logger.log_message(
-                "ERROR", "Validation failed - cannot convert file"
-            )
-            return
-
-        # Create output path
-        input_dir = os.path.dirname(xlsx_path)
-        input_name = os.path.splitext(os.path.basename(xlsx_path))[0]
-        output_path = os.path.join(input_dir, f"{input_name}_converted.xlsx")
-
-        # Convert file
-        success, conv_errors, conv_warnings = self.converter.convert_excel_file(
-            xlsx_path, output_path
-        )
-
-        # Log conversion results
-        for error in conv_errors:
-            self.message_logger.log_message("ERROR", error)
-        for warning in conv_warnings:
-            self.message_logger.log_message("WARNING", warning)
-
-        if success:
-            self.message_logger.log_message(
-                "SUCCESS", f"File converted successfully: {output_path}"
-            )
-        else:
-            self.message_logger.log_message("ERROR", "File conversion failed")

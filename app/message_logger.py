@@ -2,12 +2,13 @@
 import tkinter as tk
 from tkinter import scrolledtext
 from datetime import datetime
+from typing import Any
 
 debug = False
 
 
 class MessageLogger:
-    def __init__(self, log_widget: tk.scrolledtext.ScrolledText):
+    def __init__(self, log_widget: tk.scrolledtext.ScrolledText) -> None:
         self.log_widget = log_widget
         self.log_widget.configure(state="disabled")
         self.main_app = None  # Reference to main application
@@ -28,11 +29,11 @@ class MessageLogger:
         # Bind right-click context menu and Ctrl+C
         self._setup_context_menu()
 
-    def set_main_app(self, main_app):
+    def set_main_app(self, main_app: Any) -> None:
         """Set reference to main application for accessing global flags"""
         self.main_app = main_app
 
-    def _setup_context_menu(self):
+    def _setup_context_menu(self) -> None:
         """Setup context menu for copy functionality"""
         # Create context menu
         self.context_menu = tk.Menu(self.log_widget, tearoff=0)
@@ -52,14 +53,14 @@ class MessageLogger:
         self.log_widget.bind("<Control-a>", self._select_all_event)
         self.log_widget.bind("<Control-A>", self._select_all_event)  # Shift+Ctrl+A
 
-    def _show_context_menu(self, event):
+    def _show_context_menu(self, event) -> None:
         """Show context menu on right-click"""
         try:
             self.context_menu.tk_popup(event.x_root, event.y_root)
         finally:
             self.context_menu.grab_release()
 
-    def _copy_selection(self):
+    def _copy_selection(self) -> None:
         """Copy selected text to clipboard"""
         try:
             if self.log_widget.tag_ranges("sel"):
@@ -71,30 +72,30 @@ class MessageLogger:
             # If no text is selected, do nothing
             pass
 
-    def _copy_selection_event(self, event=None):
+    def _copy_selection_event(self, event=None) -> str:
         """Handle Ctrl+C key binding"""
         self._copy_selection()
         return "break"  # Prevent default behavior
 
-    def _select_all(self):
+    def _select_all(self) -> None:
         """Select all text in the log widget"""
         self.log_widget.tag_add("sel", "1.0", "end")
         self.log_widget.mark_set("insert", "1.0")
         self.log_widget.see("1.0")
 
-    def _select_all_event(self, event=None):
+    def _select_all_event(self, event=None) -> str:
         """Handle Ctrl+A key binding"""
         self._select_all()
         return "break"  # Prevent default behavior
 
-    def _clear_messages(self):
+    def _clear_messages(self) -> None:
         """Clear all messages from the log widget"""
         self.log_widget.configure(state="normal")
         self.log_widget.delete("1.0", "end")
         self.log_widget.configure(state="disabled")
         self._last_message = None
 
-    def log_message(self, level: str, message: str, update_last: bool = False):
+    def log_message(self, level: str, message: str, update_last: bool = False) -> None:
         """
         Main logging method
         :param level: Log level (error, warning, info, debug, success)
@@ -134,7 +135,7 @@ class MessageLogger:
         # Scroll to new message
         self.log_widget.see("end")
 
-    def update_last_message(self, new_message: str):
+    def update_last_message(self, new_message: str) -> None:
         """Update text of the last logged message"""
         if self._last_message is not None:
             # Get last message tags to determine level

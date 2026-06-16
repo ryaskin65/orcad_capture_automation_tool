@@ -4,7 +4,7 @@ import os
 from typing import Dict, List, Tuple, Optional, Set, Any
 from openpyxl import Workbook, load_workbook
 
-from orcad_canvas import OrcadCanvas
+from page_geometry import PageGeometry
 from wire_data import WireData, WireDataProcessor
 from offset_calculator import OffsetCalculator
 from excel_utils import ExcelUtils
@@ -17,7 +17,7 @@ class DataConverter:
         self.message_logger = message_logger
         self.errors: List[str] = []
         self.warnings: List[str] = []
-        self.canvas = OrcadCanvas()
+        self.page_geometry = PageGeometry()
 
         # Initialize helper classes
         self.wire_processor = WireDataProcessor(message_logger)
@@ -71,7 +71,6 @@ class DataConverter:
         """
         self.errors = []
         self.warnings = []
-        self.canvas.reset()
 
         if not os.path.exists(input_path):
             self.errors.append(f"Input file does not exist: {input_path}")
@@ -323,13 +322,6 @@ class DataConverter:
             errors.extend(connection_errors)
             warnings.extend(connection_warnings)
 
-            # 8. Splice rules validation
-            splice_rules_errors, splice_rules_warnings = (
-                self.wire_processor.validate_splice_rules(page_name, wires)
-            )
-            errors.extend(splice_rules_errors)
-            warnings.extend(splice_rules_warnings)
-
         return len(errors) == 0, errors, warnings
 
     def _calculate_all_wire_data(self, input_data: Dict) -> bool:
@@ -345,6 +337,15 @@ class DataConverter:
             try:
                 wire_data_array = self.offset_calculator.calculate_wire_data(wires)
                 self.page_wire_data[page_name] = wire_data_array
+
+                # Page capacity: reject layouts that would overflow the sheet
+                # (mirrors cable.tcl's connector-rectangle bounds check).
+                fits, capacity_msg, _info = self.page_geometry.validate_page(
+                    wire_data_array
+                )
+                if not fits:
+                    self.errors.append(f"Page '{page_name}': {capacity_msg}")
+                    return False
 
                 # NEW: Check group count validation
                 left_groups_used = set()
@@ -512,8 +513,6 @@ class DataConverter:
         self.warnings = []
 
         try:
-            from openpyxl import load_workbook
-
             input_wb = load_workbook(input_path)
             input_ws = input_wb.active
 

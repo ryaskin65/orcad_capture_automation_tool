@@ -75,7 +75,10 @@ class WireDataProcessor:
                     str_value = str(value).strip()
                     # Map Excel field name to WireData attribute
                     attribute_name = self._map_field_name(field_name)
-                    setattr(wire_data, attribute_name, str_value)
+                    # Only assign known dataclass attributes; ignore anything
+                    # unexpected instead of silently creating a stray attribute.
+                    if hasattr(wire_data, attribute_name):
+                        setattr(wire_data, attribute_name, str_value)
 
         # Skip rows without signal name (empty rows or headers)
         if not wire_data.signal_name:

@@ -6,29 +6,37 @@ import ctypes
 import win32gui
 import win32con
 
-english_layout_id = 0x0409
+from typing import Optional, Tuple
+from constants import (
+    ENGLISH_LAYOUT_ID,
+    ORCAD_WINDOW_CLASS,
+    ORCAD_COMMAND_WINDOW_CLASS,
+)
+
+# Backward-compatible alias (imported by cable_automation.py)
+english_layout_id = ENGLISH_LAYOUT_ID
 
 
 class ScreenHandler:
-    def __init__(self, message_logger):
+    def __init__(self, message_logger) -> None:
         self.message_logger = message_logger
         # Move mouse to upper-left corner to abort
         pyautogui.FAILSAFE = True
         pyautogui.PAUSE = 0.1  # Small pause between actions
 
-    def get_current_layout(self):
+    def get_current_layout(self) -> int:
         hwnd = ctypes.windll.user32.GetForegroundWindow()
         thread_id = ctypes.windll.user32.GetWindowThreadProcessId(hwnd, 0)
         layout_id = ctypes.windll.user32.GetKeyboardLayout(thread_id)
         return layout_id & 0xFFFF
 
     # eng 0x0409
-    def set_keyboard_layout(self, layout_id):
+    def set_keyboard_layout(self, layout_id: int) -> None:
         win32api.SendMessage(
             win32con.HWND_BROADCAST, win32con.WM_INPUTLANGCHANGEREQUEST, None, layout_id
         )
 
-    def set_english_layout(self):
+    def set_english_layout(self) -> bool:
         """Switch to English layout"""
         try:
             # Method 1: Broadcast message
@@ -46,7 +54,7 @@ class ScreenHandler:
             )
             return False
 
-    def set_english_layout_safe(self):
+    def set_english_layout_safe(self) -> bool:
         """Safely switch to English layout with verification"""
         original_layout = self.get_current_layout()
         self.ensure_caps_lock_off()
@@ -63,7 +71,7 @@ class ScreenHandler:
 
         return False
 
-    def ensure_caps_lock_off(self):
+    def ensure_caps_lock_off(self) -> bool:
         caps_lock_state = win32api.GetKeyState(win32con.VK_CAPITAL)
         if caps_lock_state & 0x0001:
             win32api.keybd_event(
@@ -78,7 +86,7 @@ class ScreenHandler:
             return True
         return False
 
-    def find_largest_visible_window(self, main_hwnd, target_class):
+    def find_largest_visible_window(self, main_hwnd: int, target_class: str) -> Tuple[Optional[int], int]:
         """Find the largest visible window of a specific class among child windows."""
         instances = []
 
@@ -105,14 +113,14 @@ class ScreenHandler:
 
         return target_hwnd, max_area
 
-    def click_window_center(self, hwnd):
+    def click_window_center(self, hwnd: int) -> None:
         """Click the center of a window."""
         rect = win32gui.GetWindowRect(hwnd)
         x = (rect[0] + rect[2]) // 2
         y = (rect[1] + rect[3]) // 2
         pyautogui.click(x, y)
 
-    def execute_in_orcad(self, script_path, message_logger, wait_and_clic=0):
+    def execute_in_orcad(self, script_path: str, message_logger, wait_and_clic: int = 0) -> bool:
         """Execute the source command in OrCAD Capture command window."""
         # Check if we should proceed with OrCAD execution
         if (
@@ -129,13 +137,13 @@ class ScreenHandler:
 
         self.set_english_layout_safe()
 
-        main_hwnd = win32gui.FindWindow("OrCaptureFrame", None)
+        main_hwnd = win32gui.FindWindow(ORCAD_WINDOW_CLASS, None)
         if not main_hwnd:
             self.message_logger.log_message("ERROR", "The OrCAD window was not found!")
             return False
 
         # Find command window (Edit class)
-        edit_hwnd, area = self.find_largest_visible_window(main_hwnd, "Edit")
+        edit_hwnd, area = self.find_largest_visible_window(main_hwnd, ORCAD_COMMAND_WINDOW_CLASS)
         if not edit_hwnd or area < 10000:
             self.message_logger.log_message(
                 "ERROR", "Command Window not found! (Menu: View -> Command Window)"

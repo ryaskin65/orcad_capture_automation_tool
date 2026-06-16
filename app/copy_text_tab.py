@@ -2,17 +2,16 @@
 import tkinter as tk
 from tkinter import ttk, filedialog
 import os
-import sys
 from screen_handler import ScreenHandler
+from base_tab import BaseTab
 
 script_name = "copy_text.tcl"
 file_csv = "selected_text.csv"
 
 
-class CopyTextTab:
+class CopyTextTab(BaseTab):
     def __init__(self, notebook, message_logger):
-        self.message_logger = message_logger
-        self.frame = ttk.Frame(notebook)
+        super().__init__(notebook, message_logger)
 
         # Initialize ScreenHandler with MessageLogger
         self.screen_handler = ScreenHandler(self.message_logger)
@@ -42,21 +41,6 @@ class CopyTextTab:
         )
         # self.text_area.bind("<Control-s>", self.save_file)
 
-    def get_scripts_dir(self):
-        """Get path to scripts directory"""
-        if getattr(sys, "frozen", False):
-            app_dir = os.path.dirname(sys.executable)
-        else:
-            app_dir = os.path.dirname(os.path.abspath(__file__))
-
-        if getattr(sys, "frozen", False):
-            # For executable: scripts folder is at same level as executable
-            scripts_dir = os.path.join(app_dir, "scripts")
-        else:
-            # For development: scripts folder is at same level as app folder
-            scripts_dir = os.path.join(os.path.dirname(app_dir), "scripts")
-
-        return scripts_dir
 
     def copy_text(self):
         """Copy the text area."""

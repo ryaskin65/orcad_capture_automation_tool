@@ -1,0 +1,17 @@
+# Runtime dependencies
+#
+# NOTE: this application is Windows-only — it drives OrCAD Capture through
+# Win32 APIs (window handles, keyboard layout, pyautogui input). It will not
+# run on Linux/macOS.
+
+openpyxl>=3.1,<4      # Excel (.xlsx) reading/writing
+pyautogui>=0.9.54     # Sending keystrokes/clicks to the OrCAD command window
+pywin32>=306          # Win32 APIs: window enumeration, keyboard layout, etc.
+
+# ---------------------------------------------------------------------------
+# Development / testing (install separately):
+#     pip install pytest
+#
+# The pure-logic tests (tests/test_wire_validation.py) run anywhere.
+# Tests that import the GUI layer require tkinter (bundled with the standard
+# Windows Python installer) and are skipped automatically when it is absent.

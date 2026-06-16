@@ -2,8 +2,8 @@
 import tkinter as tk
 from tkinter import ttk
 import os
-import sys
 from screen_handler import ScreenHandler
+from base_tab import BaseTab
 from excel_utils import ExcelUtils
 from orcad_script_runner import OrcadScriptRunner
 from offpage_analyzer import OffPageAnalyzer
@@ -19,12 +19,11 @@ script_copy_port = "copy_port.tcl"
 # script_change_dir_port = "change_dir_port.tcl"
 
 
-class OffPageTab:
+class OffPageTab(BaseTab):
     def __init__(self, notebook, message_logger):
         """Initialize TableTab with notebook and message variable."""
-        self.message_logger = message_logger
+        super().__init__(notebook, message_logger)
         self.excel_utils = ExcelUtils(message_logger)
-        self.frame = ttk.Frame(notebook)
 
         # Initialize ScreenHandler and ScriptRunner
         self.screen_handler = ScreenHandler(self.message_logger)
@@ -117,21 +116,6 @@ class OffPageTab:
         )
         self.change_dir_btn.pack(anchor="e", pady=(20, 5), fill="x")
 
-    def get_scripts_dir(self):
-        """Get path to scripts directory"""
-        if getattr(sys, "frozen", False):
-            app_dir = os.path.dirname(sys.executable)
-        else:
-            app_dir = os.path.dirname(os.path.abspath(__file__))
-
-        if getattr(sys, "frozen", False):
-            # For executable: scripts folder is at same level as executable
-            scripts_dir = os.path.join(app_dir, "scripts")
-        else:
-            # For development: scripts folder is at same level as app folder
-            scripts_dir = os.path.join(os.path.dirname(app_dir), "scripts")
-
-        return scripts_dir
 
     def _execute_script_with_csv(self, script_name, button, scoupe, auto_load=False):
         """Common method to execute scripts with CSV file"""
@@ -260,15 +244,6 @@ class OffPageTab:
                 "ERROR", f"Failed to open CSV file: {str(e)}"
             )
 
-    def _is_file_locked(self, filepath):
-        """Check if file is locked by attempting to open it in exclusive mode"""
-        try:
-            if os.path.exists(filepath):
-                with open(filepath, "a", encoding="utf-8") as f:
-                    pass
-            return False
-        except IOError:
-            return True
 
     def load_from_excel(self):
         """Load data from configured CSV file into treeview with dynamic columns"""

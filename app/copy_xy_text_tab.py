@@ -1,8 +1,8 @@
 # RIGa&DeepSeek 05.11.2025
 from tkinter import ttk
 import os
-import sys
 from screen_handler import ScreenHandler
+from base_tab import BaseTab
 from excel_utils import ExcelUtils
 from orcad_script_runner import OrcadScriptRunner
 
@@ -10,12 +10,11 @@ script_copy_text = "copy_xy_text.tcl"
 file_csv = "selected_text.csv"
 
 
-class CopyXYTextTab:
+class CopyXYTextTab(BaseTab):
     def __init__(self, notebook, message_logger):
         """Initialize CopyTextTab with notebook and message logger."""
-        self.message_logger = message_logger
+        super().__init__(notebook, message_logger)
         self.excel_utils = ExcelUtils(message_logger)
-        self.frame = ttk.Frame(notebook)
 
         # Initialize ScreenHandler and ScriptRunner
         self.screen_handler = ScreenHandler(self.message_logger)
@@ -58,19 +57,6 @@ class CopyXYTextTab:
         )
         self.copy_btn.pack(anchor="e", pady=(20, 5), fill="x")
 
-    def get_scripts_dir(self):
-        """Get path to scripts directory"""
-        if getattr(sys, "frozen", False):
-            app_dir = os.path.dirname(sys.executable)
-        else:
-            app_dir = os.path.dirname(os.path.abspath(__file__))
-
-        if getattr(sys, "frozen", False):
-            scripts_dir = os.path.join(app_dir, "scripts")
-        else:
-            scripts_dir = os.path.join(os.path.dirname(app_dir), "scripts")
-
-        return scripts_dir
 
     def _execute_script_with_csv(self, script_name, button, auto_load=False):
         """Common method to execute script with CSV and handle callback"""
@@ -145,16 +131,6 @@ class CopyXYTextTab:
         except Exception as e:
             self.message_logger.log_message("ERROR", f"Failed to open file: {str(e)}")
 
-    def _is_file_locked(self, filepath):
-        """Check if file is locked by trying to open in append mode"""
-        if not os.path.exists(filepath):
-            return False
-        try:
-            with open(filepath, "a", encoding="utf-8"):
-                pass
-            return False
-        except IOError:
-            return True
 
     def load_from_excel(self):
         """Load CSV data into Treeview with dynamic columns"""

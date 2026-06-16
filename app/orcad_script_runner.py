@@ -2,20 +2,30 @@
 import os
 import time
 import threading
+from typing import Optional, Callable, Any, Dict, List
 
-CHANGE_LOG_TIMEOUT = 4
+from constants import (
+    LOG_FILENAME,
+    RUN_SCRIPT_FILENAME,
+    SCRIPT_DONE_MARKER,
+    EXECUTION_TIME_PREFIX,
+    CHANGE_LOG_TIMEOUT,
+)
 
 
 class OrcadScriptRunner:
     """Handles OrCAD script execution and monitoring with log file analysis only"""
 
-    def __init__(self, screen_handler, message_logger, scripts_dir):
+    def __init__(self, screen_handler, message_logger, scripts_dir,
+                 change_log_timeout: int = CHANGE_LOG_TIMEOUT) -> None:
         self.screen_handler = screen_handler
         self.message_logger = message_logger
         self.scripts_dir = scripts_dir
+        self.change_log_timeout = change_log_timeout
         self.is_executing = False
 
-    def execute_script(self, script_name, glob_var, callback=None):
+    def execute_script(self, script_name: str, glob_var: List[List[str]],
+                       callback: Optional[Callable[[Dict[str, Any]], None]] = None) -> bool:
         """
         Execute run script in OrCAD with log file monitoring
         """
@@ -24,7 +34,7 @@ class OrcadScriptRunner:
             return False
 
         try:
-            log_file = os.path.join(self.scripts_dir, "script_safe.log")
+            log_file = os.path.join(self.scripts_dir, LOG_FILENAME)
 
             # Get log file modification time before execution
             log_exists_before = os.path.exists(log_file)
@@ -82,9 +92,9 @@ class OrcadScriptRunner:
             self.is_executing = False
             return False
 
-    def _create_run_script(self, script_name, glob_var):
+    def _create_run_script(self, script_name: str, glob_var: List[List[str]]) -> str:
         """Create simple TCL script for run script"""
-        script_file = os.path.join(self.scripts_dir, "run_script.tcl")
+        script_file = os.path.join(self.scripts_dir, RUN_SCRIPT_FILENAME)
         main_script_path = os.path.join(self.scripts_dir, script_name).replace(
             "\\", "/"
         )
@@ -108,7 +118,7 @@ if {{[catch {{source "{main_script_path}"}} err]}} {{
 }} else {{
     set end_time [clock seconds]
     set execution_time [expr {{$end_time - $start_time}}]
-    puts "EXECUTION_TIME:$execution_time sec"
+    puts "{EXECUTION_TIME_PREFIX}$execution_time sec"
 }}
 set safeVars {{start_time end_time execution_time err}}
 foreach var $safeVars {{
@@ -122,7 +132,7 @@ foreach var $safeVars {{
 
         return script_file
 
-    def _monitor_log_file(self, log_file, log_mtime_before):
+    def _monitor_log_file(self, log_file: str, log_mtime_before: float) -> Dict[str, Any]:
         """
         Monitor log file for script completion with real-time log output
         """
@@ -131,7 +141,7 @@ foreach var $safeVars {{
         last_read_position = 0
         last_growth_time = start_time
 
-        while time.time() - last_growth_time < CHANGE_LOG_TIMEOUT:
+        while time.time() - last_growth_time < self.change_log_timeout:
             if os.path.exists(log_file):
                 try:
                     current_mtime = os.path.getmtime(log_file)
@@ -155,12 +165,12 @@ foreach var $safeVars {{
                             if line:
                                 self.message_logger.log_message("INFO", line)
 
-                    if "Script done!" in new_content:
+                    if SCRIPT_DONE_MARKER in new_content:
                         execution_time = None
                         for line in new_content.split("\n"):
-                            if "EXECUTION_TIME:" in line:
+                            if EXECUTION_TIME_PREFIX in line:
                                 try:
-                                    execution_time = line.split("EXECUTION_TIME:")[
+                                    execution_time = line.split(EXECUTION_TIME_PREFIX)[
                                         1
                                     ].split(" ")[0]
                                 except:
